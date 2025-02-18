@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍞🥣🤖⏲</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 80vh;
+            margin: 0;
+            background: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 90%;
+            width: 300px;
+            height: 308px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 0;
+            padding: 0;
+        }
+        input {
+            padding: 10px;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        input:disabled {
+            background: none;
+            border: none;
+            font-weight: bold;
+            padding: 15px;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #222;
+        }
+        input[type="time"] {
+            width: 100%;
+            min-width: 0;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🍞🥣🤖⏲</h1>
+    <input type="text" id="result" disabled>
+    <input type="time" id="startTime" onchange="calculateDifference()">
+    <input type="time" id="endTime" onchange="calculateDifference()">
+</div>
+<script>
+    function setDefaultTimes() {
+        let now = new Date();
+        let hours = now.getHours().toString().padStart(2, '0');
+        let minutes = now.getMinutes().toString().padStart(2, '0');
+        document.getElementById('startTime').value = `${hours}:${minutes}`;
+        now.setHours(now.getHours() + 3);
+        now.setMinutes(now.getMinutes() + 40);
+        let endHours = now.getHours().toString().padStart(2, '0');
+        let endMinutes = now.getMinutes().toString().padStart(2, '0');
+        document.getElementById('endTime').value = `${endHours}:${endMinutes}`;
+        calculateDifference();
+    }
+
+    function calculateDifference() {
+        let start = document.getElementById('startTime').value;
+        let end = document.getElementById('endTime').value;
+        if (!start || !end) return;
+        let startTime = start.split(':').map(Number);
+        let endTime = end.split(':').map(Number);
+        let startMinutes = startTime[0] * 60 + startTime[1];
+        let endMinutes = endTime[0] * 60 + endTime[1];
+        let difference = endMinutes - startMinutes;
+        if (difference < 0) difference += 1440;
+        let hours = Math.floor(difference / 60);
+        let minutes = difference % 60;
+        document.getElementById('result').value = `${hours}h ${minutes}m`;
+    }
+
+    window.onload = setDefaultTimes;
+</script>
+</body>
+</html>
