@@ -74,7 +74,7 @@ while true; do
                 custom_command="echo \${choices[\$RANDOM % 3]}"
             fi
             auto_mode=true
-            echo "Auto-play started with custom command."
+            echo "Auto-play started with command: '$custom_command'."
             continue
         fi
     else
@@ -84,6 +84,10 @@ while true; do
     if [[ "$input" =~ ^[rps]$ ]]; then
         computer_choice=${choices[$RANDOM % 3]}
 
+        echo -e
+        if [[ $auto_mode == true ]]; then
+            echo "Command: '$custom_command'"
+        fi
         echo -e
         echo -n "You chose: "; show_choice "$input"
         echo -n "Computer chose: "; show_choice "$computer_choice"
