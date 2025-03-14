@@ -45,8 +45,6 @@ computer_move() {
                 p) echo "s" ;;
                 s) echo "r" ;;
             esac ;;
-        favor-rock)
-            [[ $((RANDOM % 100)) -lt 70 ]] && echo "r" || echo "${choices[$RANDOM % 3]}" ;;
         avoid-repeat)
             [[ "$last_computer_choice" == "r" ]] && echo "${choices[$RANDOM % 2 + 1]}" || [[ "$last_computer_choice" == "p" ]] && echo "${choices[$((RANDOM % 2 == 0 ? 0 : 2))]}" || echo "${choices[$((RANDOM % 2))]}" ;;
         mimic-pattern)
@@ -111,7 +109,7 @@ while true; do
 
         ((strategy_switch_counter--))
         if (( strategy_switch_counter == 0 )); then
-            strategies=("random" "repeat-last" "counter-last" "favor-rock" "avoid-repeat" "mimic-pattern")
+            strategies=("random" "repeat-last" "counter-last" "avoid-repeat" "mimic-pattern")
             computer_strategy=${strategies[$RANDOM % ${#strategies[@]}]}
             strategy_switch_counter=$((RANDOM % 10 + 1))
             echo "Computer switched strategy to: '$computer_strategy'"
