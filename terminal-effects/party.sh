@@ -4,6 +4,7 @@ export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 
 CHARS=("░" "▒" "▓" "█" "▄" "▀" "▌" "▐" "▖" "▗" "▘" "▙" "▚" "▛" "▜" "▝" "▞" "▟" "#" "*" "+" "~" "." "|" "/" "\\" "-" "_" "@" "&" "%")
+EMOJIS=("🎉" "🎊" "🥳" "✨" "🎈" "🎂" "🍰" "🍾" "🥂" "🎵" "🎶" "💃" "🕺" "🪩" "🍹" "🍻")
 WIDTH=$(tput cols)
 HEIGHT=$(tput lines)
 
@@ -14,7 +15,12 @@ trap "tput cnorm; exit" INT
 MODE=${1:-color}
 
 while true; do
-    CHAR=${CHARS[$RANDOM % ${#CHARS[@]}]}
+    if [[ "$MODE" == "emojis" ]]; then
+        CHAR=${EMOJIS[$RANDOM % ${#EMOJIS[@]}]}
+    else
+        CHAR=${CHARS[$RANDOM % ${#CHARS[@]}]}
+    fi
+
     X=$((RANDOM % WIDTH))
     Y=$((RANDOM % HEIGHT))
 

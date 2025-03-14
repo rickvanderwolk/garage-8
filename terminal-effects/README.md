@@ -22,6 +22,12 @@ default color only
 bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/heads/main/terminal-effects/party.sh) none
 ```
 
+emojis
+
+```
+bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/heads/main/terminal-effects/party.sh) emojis
+```
+
 ## 🌳 Grow
 
 ```
