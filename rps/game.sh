@@ -8,6 +8,8 @@ total_games=0
 use_emojis=true
 auto_mode=false
 custom_command=""
+computer_strategy="random"
+strategy_switch_counter=$((RANDOM % 10 + 1))
 
 show_choice() {
     case $1 in
@@ -29,6 +31,27 @@ determine_winner() {
         [[ $use_emojis == true ]] && echo "Computer wins" || echo "Computer wins"
         ((computer_score++))
     fi
+}
+
+computer_move() {
+    case $computer_strategy in
+        random)
+            echo "${choices[$RANDOM % 3]}" ;;
+        repeat-last)
+            echo "$last_player_choice" ;;
+        counter-last)
+            case "$last_player_choice" in
+                r) echo "p" ;;
+                p) echo "s" ;;
+                s) echo "r" ;;
+            esac ;;
+        favor-rock)
+            [[ $((RANDOM % 100)) -lt 70 ]] && echo "r" || echo "${choices[$RANDOM % 3]}" ;;
+        avoid-repeat)
+            [[ "$last_computer_choice" == "r" ]] && echo "${choices[$RANDOM % 2 + 1]}" || [[ "$last_computer_choice" == "p" ]] && echo "${choices[$((RANDOM % 2 == 0 ? 0 : 2))]}" || echo "${choices[$((RANDOM % 2))]}" ;;
+        mimic-pattern)
+            [[ $((total_games % 2)) -eq 0 ]] && echo "r" || echo "p" ;;
+    esac
 }
 
 display_score() {
@@ -82,13 +105,24 @@ while true; do
     fi
 
     if [[ "$input" =~ ^[rps]$ ]]; then
-        computer_choice=${choices[$RANDOM % 3]}
+        last_player_choice="$input"
+
+        computer_choice=$(computer_move)
+
+        ((strategy_switch_counter--))
+        if (( strategy_switch_counter == 0 )); then
+            strategies=("random" "repeat-last" "counter-last" "favor-rock" "avoid-repeat" "mimic-pattern")
+            computer_strategy=${strategies[$RANDOM % ${#strategies[@]}]}
+            strategy_switch_counter=$((RANDOM % 10 + 1))
+            echo "Computer switched strategy to: '$computer_strategy'"
+        fi
+
+        last_computer_choice="$computer_choice"
 
         echo -e
         if [[ $auto_mode == true ]]; then
             echo "Command: '$custom_command'"
         fi
-        echo -e
         echo -n "You chose: "; show_choice "$input"
         echo -n "Computer chose: "; show_choice "$computer_choice"
 
