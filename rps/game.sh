@@ -5,25 +5,26 @@ player_score=0
 computer_score=0
 ties=0
 total_games=0
+use_emojis=true
 
 show_choice() {
     case $1 in
-        r) echo "Rock 🪨" ;;
-        p) echo "Paper 📄" ;;
-        s) echo "Scissors ✂️" ;;
+        r) echo "Rock" ;;
+        p) echo "Paper" ;;
+        s) echo "Scissors" ;;
     esac
 }
 
 determine_winner() {
     ((total_games++))
     if [[ "$1" == "$2" ]]; then
-        echo "🟡 It's a tie"
+        [[ $use_emojis == true ]] && echo "It's a tie" || echo "It's a tie"
         ((ties++))
     elif [[ ("$1" == "r" && "$2" == "s") || ("$1" == "p" && "$2" == "r") || ("$1" == "s" && "$2" == "p") ]]; then
-        echo "🟢 You win"
+        [[ $use_emojis == true ]] && echo "You win" || echo "You win"
         ((player_score++))
     else
-        echo "🔴 Computer wins"
+        [[ $use_emojis == true ]] && echo "Computer wins" || echo "Computer wins"
         ((computer_score++))
     fi
 }
@@ -39,25 +40,24 @@ display_score() {
         tie_percentage=$((ties * 100 / total_games))
     fi
 
-    echo -e "\n🎮 Total games: $total_games"
-    echo -e "📊 Score: Player wins 🟢 $player_score ($win_percentage%) | Computer wins 🔴 $computer_score ($loss_percentage%) | Ties 🟡 $ties ($tie_percentage%)"
+    echo -e "\nTotal games: $total_games"
+    echo -e "Score: Player wins $player_score ($win_percentage%) | Computer wins $computer_score ($loss_percentage%) | Ties $ties ($tie_percentage%)"
 
     if ((player_score > computer_score)); then
-        echo "🏆 Status: 🟢 You are leading"
+        [[ $use_emojis == true ]] && echo "Status: You are leading" || echo "Status: You are leading"
     elif ((computer_score > player_score)); then
-        echo "🏆 Status: 🔴 Computer is leading"
+        [[ $use_emojis == true ]] && echo "Status: Computer is leading" || echo "Status: Computer is leading"
     else
-        echo "🏆 Status: 🟡 It's a tie"
+        [[ $use_emojis == true ]] && echo "Status: It's a tie" || echo "Status: It's a tie"
     fi
 }
 
 display_instructions() {
     echo -e
-    echo -e
     echo "==============================================="
-    echo "🪨📄✂️  Rock-Paper-Scissors"
+    echo "Rock-Paper-Scissors"
     echo "==============================================="
-    echo "Press: 'r' for Rock 🪨 | 'p' for Paper 📄 | 's' for Scissors ✂️  | 'Ctrl+C' to quit the game."
+    echo "Press: 'r' for Rock | 'p' for Paper | 's' for Scissors | 'Ctrl+C' to quit the game."
 }
 
 while true; do
@@ -69,8 +69,8 @@ while true; do
         computer_choice=${choices[$RANDOM % 3]}
 
         echo -e
-        echo -n "🧑 You chose: "; show_choice "$player_choice"
-        echo -n "💻 Computer chose: "; show_choice "$computer_choice"
+        echo -n "You chose: "; show_choice "$player_choice"
+        echo -n "Computer chose: "; show_choice "$computer_choice"
 
         determine_winner "$player_choice" "$computer_choice"
         display_score
