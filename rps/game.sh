@@ -80,7 +80,7 @@ display_instructions() {
     echo "==============================================="
     echo "Rock-Paper-Scissors"
     echo "==============================================="
-    echo "Press: 'r' for Rock | 'p' for Paper | 's' for Scissors | '/<bash_command>' to enter custom strategy | 'Ctrl+C' to quit the game."
+    echo "Press: 'r' for Rock | 'p' for Paper | 's' for Scissors | '/<bash_command>' to enter custom strategy. For example: use '/echo r' to always choose rock | 'Ctrl+C' to quit the game."
 }
 
 while true; do
