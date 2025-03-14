@@ -39,7 +39,8 @@ display_score() {
         tie_percentage=$((ties * 100 / total_games))
     fi
 
-    echo -e "\n📊 Score: Player 🟢 $player_score ($win_percentage%) | Computer 🔴 $computer_score ($loss_percentage%) | Ties 🟡 $ties ($tie_percentage%)"
+    echo -e "\n🎮 Total games: $total_games"
+    echo -e "📊 Score: Player wins 🟢 $player_score ($win_percentage%) | Computer wins 🔴 $computer_score ($loss_percentage%) | Ties 🟡 $ties ($tie_percentage%)"
 
     if ((player_score > computer_score)); then
         echo "🏆 Status: 🟢 You are leading"
@@ -48,19 +49,16 @@ display_score() {
     else
         echo "🏆 Status: 🟡 It's a tie"
     fi
-    echo
 }
 
 display_instructions() {
-    echo -e "\n-----------------------------------------------"
-    echo "Press: 'r' for Rock 🪨 | 'p' for Paper 📄 | 's' for Scissors ✂️"
-    echo "Press Ctrl+C to quit the game."
-    echo "-----------------------------------------------"
+    echo -e
+    echo -e
+    echo "==============================================="
+    echo "🪨📄✂️  Rock-Paper-Scissors"
+    echo "==============================================="
+    echo "Press: 'r' for Rock 🪨 | 'p' for Paper 📄 | 's' for Scissors ✂️  | 'Ctrl+C' to quit the game."
 }
-
-echo "==============================================="
-echo "🪨📄✂️  Rock-Paper-Scissors"
-echo "==============================================="
 
 while true; do
     display_instructions
@@ -70,8 +68,8 @@ while true; do
     if [[ "$player_choice" =~ ^[rps]$ ]]; then
         computer_choice=${choices[$RANDOM % 3]}
 
-        echo -e "\n-----------------------------------------------"
-        echo -n "🧑 You chose:      "; show_choice "$player_choice"
+        echo -e
+        echo -n "🧑 You chose: "; show_choice "$player_choice"
         echo -n "💻 Computer chose: "; show_choice "$computer_choice"
 
         determine_winner "$player_choice" "$computer_choice"
