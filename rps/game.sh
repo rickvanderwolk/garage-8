@@ -6,6 +6,8 @@ computer_score=0
 ties=0
 total_games=0
 use_emojis=true
+auto_mode=false
+custom_command=""
 
 show_choice() {
     case $1 in
@@ -57,22 +59,37 @@ display_instructions() {
     echo "==============================================="
     echo "Rock-Paper-Scissors"
     echo "==============================================="
-    echo "Press: 'r' for Rock | 'p' for Paper | 's' for Scissors | 'Ctrl+C' to quit the game."
+    echo "Press: 'r' for Rock | 'p' for Paper | 's' for Scissors | '/<bash_command>' to enter custom strategy | 'Ctrl+C' to quit the game."
 }
 
 while true; do
     display_instructions
 
-    read -n1 -s player_choice
+    if [[ $auto_mode == false ]]; then
+        read -r -n1 -s input
+        if [[ "$input" == "/" ]]; then
+            read -r custom_command
+            custom_command=${custom_command#/} # Remove leading slash if present
+            if [[ -z "$custom_command" ]]; then
+                custom_command="echo \${choices[\$RANDOM % 3]}"
+            fi
+            auto_mode=true
+            echo "Auto-play started with custom command."
+            continue
+        fi
+    else
+        input=$(eval "$custom_command")
+    fi
 
-    if [[ "$player_choice" =~ ^[rps]$ ]]; then
+    if [[ "$input" =~ ^[rps]$ ]]; then
         computer_choice=${choices[$RANDOM % 3]}
 
         echo -e
-        echo -n "You chose: "; show_choice "$player_choice"
+        echo -n "You chose: "; show_choice "$input"
         echo -n "Computer chose: "; show_choice "$computer_choice"
 
-        determine_winner "$player_choice" "$computer_choice"
+        determine_winner "$input" "$computer_choice"
         display_score
     fi
+
 done
