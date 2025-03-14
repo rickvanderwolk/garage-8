@@ -1,5 +1,7 @@
 # RPS
 
+![preview](preview.png)
+
 Play Rock-Paper-Scissors in your terminal. No setup needed—just one command and you're ready to play!
 
 ## ⚠️ Warning
