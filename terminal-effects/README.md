@@ -29,3 +29,9 @@ bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/he
 ```
 bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/heads/main/terminal-effects/clear.sh)  
 ```
+
+##  ⚡ Glitch (might actually mess up your PC for a while)
+
+```
+bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/heads/main/terminal-effects/glitch.sh)  
+```
