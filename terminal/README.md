@@ -18,10 +18,10 @@ default color only
 bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/heads/main/terminal/party.sh) none
 ```
 
-## 🌳 Growing tree
+## 🌳 Grow
 
 ```
-bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/heads/main/terminal/tree.sh)  
+bash <(curl -s https://raw.githubusercontent.com/rickvanderwolk/garage-8/refs/heads/main/terminal/grow.sh)  
 ```
 
 ## 🧼 Clear screen (slowly)
