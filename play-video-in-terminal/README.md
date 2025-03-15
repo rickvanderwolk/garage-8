@@ -4,8 +4,6 @@
 
 I recently tried to play a video on a Raspberry Pi. I ran the command via SSH on the Pi, expecting the video to play on the device itself. But to my surprise, it started playing directly in my terminal as ASCII art. Not exactly what I was expecting—but honestly, it was even better!
 
-## Play YouTube videos in your terminal
-
 I don't have my exact Raspberry Pi commands saved anymore. When I have the time and motivation, I'll figure them out again and share them here.
 
 For now, here’s how I got it working on macOS. It even works with YouTube videos. If you run into any issues, feel free to reach out.
