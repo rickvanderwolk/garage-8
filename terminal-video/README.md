@@ -1,4 +1,4 @@
-# Play video in terminal
+# Play videos in your terminal
 
 <img src="preview.png" alt="preview" width="400">
 
