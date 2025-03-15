@@ -1,6 +1,6 @@
 # Play video in terminal
 
-![preview](preview.png)
+<img src="preview.png" alt="preview" width="400">
 
 I recently tried to play a video on a Raspberry Pi. I ran the command via SSH on the Pi, expecting the video to play on the device itself. But to my surprise, it started playing directly in my terminal as ASCII art. Not exactly what I was expecting—but honestly, it was even better!
 
