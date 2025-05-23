@@ -8,7 +8,8 @@ class 👩‍🎨 {
     /**
      * @return 🎨
      */
-    public function 🎨() {
+    public function 🎨(): 🎨
+    {
         echo '👩‍🎨 → 🎨';
         return new 🎨;
     }
@@ -22,7 +23,8 @@ class 🎨 {
     /**
      * @return 🖼️
      */
-    public function 🖼️() {
+    public function 🖼️(): 🖼️
+    {
         echo ' → 🖼️';
         return new 🖼️;
     }
@@ -36,7 +38,8 @@ class 🖼️ {
     /**
      * @return $this
      */
-    public function ✨() {
+    public function ✨()
+    {
         $🌟 = [' → 🧘', ' → 🫀', ' → 🌈', ' → 🎶', ' → 🪞', ' → 🌊'];
         echo $🌟[array_rand($🌟)];
         return $this;

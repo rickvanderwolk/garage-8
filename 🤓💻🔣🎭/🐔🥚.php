@@ -9,7 +9,8 @@ class 🐓 {
      * @param 🐔 $🐔
      * @return 🐔
      */
-    public function 💘(🐔 $🐔) {
+    public function 💘(🐔 $🐔): 🐔
+    {
         echo '🐓💘🐔';
         return $🐔->💞();
     }
@@ -23,7 +24,8 @@ class 🐔 {
     /**
      * @return $this
      */
-    public function 💞() {
+    public function 💞()
+    {
         $this->💖 = true;
         return $this;
     }
@@ -32,7 +34,8 @@ class 🐔 {
      * @param string $🐔
      * @return 🥚
      */
-    public function 🥚(string $🐔 = '🐔') {
+    public function 🥚(string $🐔 = '🐔'): 🥚
+    {
         echo $🐔 ? "$🐔 → 🥚" : ' → 🥚';
         return new 🥚($this->💖);
     }
@@ -49,14 +52,16 @@ class 🥚 {
     /**
      * @param bool $💖
      */
-    public function __construct(bool $💖) {
+    public function __construct(bool $💖)
+    {
         $this->💖 = $💖;
     }
 
     /**
      * @return $this
      */
-    public function 🪹() {
+    public function 🪹()
+    {
         echo $this->💖 ? ' → 🪹 → 🐣' : ' → 🪹 → 🚫';
         return $this;
     }
