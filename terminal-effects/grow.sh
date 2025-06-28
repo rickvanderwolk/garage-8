@@ -13,6 +13,8 @@ trap "tput cnorm; exit" INT
 X=$((WIDTH / 2))
 Y=$((HEIGHT / 2))
 
+printf "\033[3J\033[H\033[2J"
+
 while true; do
     X=$(( (X + RANDOM % 3 - 1 + WIDTH) % WIDTH ))
     Y=$(( (Y + RANDOM % 3 - 1 + HEIGHT) % HEIGHT ))

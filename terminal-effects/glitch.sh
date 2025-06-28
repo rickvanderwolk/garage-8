@@ -13,6 +13,8 @@ MAX_LENGTH=10
 tput civis
 trap "tput cnorm; exit" INT
 
+printf "\033[3J\033[H\033[2J"
+
 rainfall() {
     while true; do
         X=$((RANDOM % WIDTH))

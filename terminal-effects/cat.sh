@@ -25,6 +25,8 @@ frame2="
 
 frames=("$frame1" "$frame1" "$frame1" "$frame1" "$frame1" "$frame2" "$frame1")
 
+printf "\033[3J\033[H\033[2J"
+
 while true; do
     for frame in "${frames[@]}"; do
         clear

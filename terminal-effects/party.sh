@@ -14,6 +14,8 @@ trap "tput cnorm; exit" INT
 
 MODE=${1:-color}
 
+printf "\033[3J\033[H\033[2J"
+
 while true; do
     if [[ "$MODE" == "emojis" ]]; then
         CHAR=${EMOJIS[$RANDOM % ${#EMOJIS[@]}]}
