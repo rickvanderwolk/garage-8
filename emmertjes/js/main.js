@@ -321,7 +321,7 @@ function mousePressed () {
 
 function touchStarted(){
     if (gameOver){
-        if (inResetButton(mouseX, my)) initialise();
+        if (inResetButton(mouseX, mouseY)) initialise();
         return false;
     }
     dropBall();
