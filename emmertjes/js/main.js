@@ -3,6 +3,7 @@ const canvasMargin = 20;
 let cx, cy, arenaR, rot, rotSpeed, rotAccel, rotMax;
 let bucketCount, bucketR, bucketsOrbitR;
 let balls, particles, totalToCatch, released, caught, missed, gameOver, startTime, timeLimit, lastDropTime, dropCooldown;
+let inputLocked, hitFlash, missFlash;
 
 function setup () {
     initialise();
@@ -35,10 +36,14 @@ function initialise () {
     startTime = millis();
     lastDropTime = -9999;
     dropCooldown = 70;
+    inputLocked = false;
+    hitFlash = 0;
+    missFlash = 0;
 }
 
 function draw() {
     drawBackGlow();
+    drawFlashes();
     drawScanlines();
     drawHUD();
     if (gameOver){
@@ -79,6 +84,25 @@ function drawBackGlow(){
     drawParticles();
 }
 
+function drawFlashes(){
+    if (hitFlash>0){
+        push();
+        noStroke();
+        fill(0,200,255, 120*hitFlash);
+        rect(0,0,width,height);
+        pop();
+        hitFlash*=0.88;
+    }
+    if (missFlash>0){
+        push();
+        noStroke();
+        fill(255,60,60, 120*missFlash);
+        rect(0,0,width,height);
+        pop();
+        missFlash*=0.88;
+    }
+}
+
 function drawScanlines(){
     stroke(255,14);
     for (let y=0;y<height;y+=4){
@@ -97,11 +121,9 @@ function drawHUD() {
     textSize(18);
     text('Tijd: ' + nf(remaining,2), 20, 44);
     text('Drops: ' + released + ' / ' + totalToCatch, 20, 66);
-
     textAlign(CENTER,TOP);
     textSize(min(width,height)*0.06);
     text('✓ ' + caught + '    ✖ ' + missed, width/2, 18);
-
     if (gameOver) {
         fill(0,210);
         rect(0,0,width,height);
@@ -189,6 +211,7 @@ function updateBalls(){
         const b = balls[i];
         if (b.caught){
             spawnBurst(b.x,b.y);
+            hitFlash = 1;
             caught++;
             balls.splice(i,1);
             continue;
@@ -201,6 +224,7 @@ function updateBalls(){
             } else {
                 if (!b.missCounted){
                     missed++;
+                    missFlash = 1;
                     b.missCounted = true;
                 }
                 b.enteredArena = true;
@@ -297,7 +321,7 @@ function mousePressed () {
 
 function touchStarted(){
     if (gameOver){
-        if (inResetButton(mouseX, mouseY)) initialise();
+        if (inResetButton(mouseX, my)) initialise();
         return false;
     }
     dropBall();
@@ -307,16 +331,24 @@ function touchStarted(){
 function dropBall(){
     const now = millis();
     if (now - lastDropTime < dropCooldown) return;
+    if (inputLocked) return;
     if (released >= totalToCatch) return;
     balls.push(makeBall());
     released++;
     lastDropTime = now;
-    if (released >= totalToCatch) gameOver = true;
+    if (released >= totalToCatch) inputLocked = true;
 }
 
 function checkGameOver(){
     const elapsed = (millis()-startTime)/1000;
-    if (elapsed>=timeLimit) gameOver = true;
+    if (elapsed>=timeLimit){
+        gameOver = true;
+        return;
+    }
+    if (released>=totalToCatch && (caught+missed)>=totalToCatch){
+        gameOver = true;
+        return;
+    }
 }
 
 function drawResetButtons(){
