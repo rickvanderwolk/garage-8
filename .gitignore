@@ -1,3 +1,5 @@
 .idea
 .DS_store
 .env
+evolving-hue-lights/config.json
+evolving-hue-lights/venv
