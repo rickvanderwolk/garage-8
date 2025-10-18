@@ -124,6 +124,7 @@ def parse_arguments():
     p.add_argument('--lights', nargs='+', help='IDs of one or more full color lights to control')
     p.add_argument('--speed', type=float, default=1.0, help='Seconds between updates')
     p.add_argument('--fade', type=float, default=1.0, help='Fade duration in seconds')
+    p.add_argument('--step-size', type=int, default=1, help='Maximum step size for color changes (default: 1)')
     return p.parse_args()
 
 def clamp(v, lo, hi):
@@ -165,13 +166,13 @@ def update_light(bridge_ip, username, light_id, rgb, fade_seconds):
     except requests.RequestException as e:
         logging.error(f"Failed to update light {light_id}: {e}")
 
-def step_one_channel(rgb):
+def step_one_channel(rgb, step_size=1):
     idx = random.randint(0,2)
-    delta = 1 if random.random() < 0.5 else -1
+    delta = step_size if random.random() < 0.5 else -step_size
     rgb[idx] = clamp(rgb[idx] + delta, 0, 255)
     return rgb, idx, delta
 
-def main_loop(bridge_ip, username, lids, speed, fade):
+def main_loop(bridge_ip, username, lids, speed, fade, step_size):
     states = {lid: rgb_init() for lid in lids}
     for lid in lids:
         logging.info(f"Initializing light {lid} with RGB: {states[lid]}")
@@ -179,7 +180,7 @@ def main_loop(bridge_ip, username, lids, speed, fade):
     current_index = 0
     while True:
         lamp = lids[current_index]
-        states[lamp], channel_idx, delta = step_one_channel(states[lamp])
+        states[lamp], channel_idx, delta = step_one_channel(states[lamp], step_size)
         channel_name = ['R', 'G', 'B'][channel_idx]
         logging.info(f"Light {lamp}: {channel_name}{delta:+d} -> RGB: {states[lamp]}")
         update_light(bridge_ip, username, lamp, states[lamp], fade)
@@ -203,7 +204,7 @@ def main():
     args = parse_arguments()
     lights = find_full_color_lights(bridge_ip, username, args.lights)
     logging.info(f"Full color lights being used: {lights}")
-    main_loop(bridge_ip, username, lights, args.speed, args.fade)
+    main_loop(bridge_ip, username, lights, args.speed, args.fade, args.step_size)
 
 if __name__ == "__main__":
     main()
