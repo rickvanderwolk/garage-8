@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Background 3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            transition: background 1s ease;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        let time = 0;
+        let isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        // Huidige waarden voor vloeiende overgang
+        let currentSaturation = isDarkMode ? 75 : 55;
+        let currentLightness = isDarkMode ? 58 : 80;
+
+        // Check elke 5 seconden of dark mode is veranderd
+        setInterval(() => {
+            isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }, 5000);
+
+        function animate() {
+            time += 0.003;
+
+            const hue1 = Math.sin(time * 0.7) * 360;
+            const hue2 = Math.sin(time * 0.9 + 2) * 360;
+            const hue3 = Math.sin(time * 1.1 + 4) * 360;
+            const hue4 = Math.sin(time * 0.5 + 1) * 360;
+
+            // Doel waarden voor light/dark mode
+            const targetSaturation = isDarkMode ? 75 : 55;
+            const targetLightness = isDarkMode ? 58 : 80;
+
+            // Geleidelijk naar doel waarden bewegen (0.02 = langzaam)
+            currentSaturation += (targetSaturation - currentSaturation) * 0.02;
+            currentLightness += (targetLightness - currentLightness) * 0.02;
+
+            const color1 = `hsl(${hue1}, ${currentSaturation}%, ${currentLightness}%)`;
+            const color2 = `hsl(${hue2}, ${currentSaturation}%, ${currentLightness}%)`;
+            const color3 = `hsl(${hue3}, ${currentSaturation}%, ${currentLightness}%)`;
+            const color4 = `hsl(${hue4}, ${currentSaturation}%, ${currentLightness}%)`;
+
+            const x1 = Math.sin(time * 0.6) * 40 + 50;
+            const y1 = Math.cos(time * 0.8) * 40 + 50;
+            const x2 = Math.sin(time * 0.5 + 2) * 40 + 50;
+            const y2 = Math.cos(time * 0.7 + 3) * 40 + 50;
+            const x3 = Math.sin(time * 0.9 + 4) * 40 + 50;
+            const y3 = Math.cos(time * 0.6 + 1) * 40 + 50;
+
+            document.body.style.background = `
+                radial-gradient(ellipse at ${x1}% ${y1}%, ${color1} 0%, transparent 70%),
+                radial-gradient(ellipse at ${x2}% ${y2}%, ${color2} 0%, transparent 70%),
+                radial-gradient(ellipse at ${x3}% ${y3}%, ${color3} 0%, transparent 70%),
+                ${color4}
+            `;
+            document.body.style.filter = 'blur(80px)';
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
