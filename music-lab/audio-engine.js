@@ -38,30 +38,50 @@ class AudioEngine {
     }
 
     /**
-     * KICK DRUM
+     * KICK DRUM - Improved with click and body
      * Lage frequentie oscillator met pitch envelope
      */
     playKick(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
-        // Oscillator voor de kick body
+        // Body oscillator
         const osc = ctx.createOscillator();
         const oscGain = ctx.createGain();
 
-        // Start hoog en ga snel naar laag (punch)
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(150, t);
-        osc.frequency.exponentialRampToValueAtTime(40, t + 0.05);
+        osc.frequency.exponentialRampToValueAtTime(45, t + 0.05);
 
-        // Amplitude envelope (met volume parameter)
-        oscGain.gain.setValueAtTime(volume, t);
-        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        oscGain.gain.setValueAtTime(volume * 1.2, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
 
         osc.connect(oscGain);
         oscGain.connect(this.masterGain);
 
+        // Click/attack component
+        const clickOsc = ctx.createOscillator();
+        const clickGain = ctx.createGain();
+        const clickFilter = ctx.createBiquadFilter();
+
+        clickOsc.type = 'triangle';
+        clickOsc.frequency.setValueAtTime(800, t);
+        clickOsc.frequency.exponentialRampToValueAtTime(100, t + 0.01);
+
+        clickFilter.type = 'highpass';
+        clickFilter.frequency.value = 400;
+
+        clickGain.gain.setValueAtTime(volume * 0.4, t);
+        clickGain.gain.exponentialRampToValueAtTime(0.01, t + 0.02);
+
+        clickOsc.connect(clickFilter);
+        clickFilter.connect(clickGain);
+        clickGain.connect(this.masterGain);
+
         osc.start(t);
-        osc.stop(t + 0.5);
+        osc.stop(t + 0.4);
+        clickOsc.start(t);
+        clickOsc.stop(t + 0.02);
     }
 
     /**
@@ -99,48 +119,79 @@ class AudioEngine {
     }
 
     /**
-     * HI-HAT
+     * HI-HAT - Improved with metallic resonances
      * High frequency noise met korte envelope
      */
     playHiHat(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
-        // Noise voor hi-hat
-        const noise = this.createNoise(t, 0.05, 0.3 * volume);
+        // Main noise
+        const noise = this.createNoise(t, 0.04, 0.25 * volume);
 
-        // High-pass filter voor metallic sound
+        // High-pass filter
         const highpass = ctx.createBiquadFilter();
         highpass.type = 'highpass';
-        highpass.frequency.value = 7000;
+        highpass.frequency.value = 8000;
+        highpass.Q.value = 0.5;
+
+        // Metallic resonance filters
+        const resonance1 = ctx.createBiquadFilter();
+        resonance1.type = 'bandpass';
+        resonance1.frequency.value = 10000;
+        resonance1.Q.value = 3;
+
+        const resonance2 = ctx.createBiquadFilter();
+        resonance2.type = 'bandpass';
+        resonance2.frequency.value = 6500;
+        resonance2.Q.value = 2;
 
         noise.gain.connect(highpass);
-        highpass.connect(this.masterGain);
+        highpass.connect(resonance1);
+        resonance1.connect(resonance2);
+        resonance2.connect(this.masterGain);
     }
 
     /**
-     * CLAP
+     * CLAP - Improved with layered noise
      * Multiple korte noise bursts
      */
     playClap(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
-        // 3 korte noise bursts voor clap effect
-        const delays = [0, 0.015, 0.03];
+        // Multi-layered clap for more realistic sound
+        const delays = [0, 0.008, 0.016, 0.024];
+        const volumes = [0.7, 0.5, 0.6, 0.4];
 
-        delays.forEach(delay => {
-            const noise = this.createNoise(t + delay, 0.1, 0.5 * volume);
+        delays.forEach((delay, i) => {
+            const noise = this.createNoise(t + delay, 0.08, volumes[i] * volume);
 
             // Bandpass filter voor clap karakter
             const bandpass = ctx.createBiquadFilter();
             bandpass.type = 'bandpass';
-            bandpass.frequency.value = 1500;
-            bandpass.Q.value = 1;
+            bandpass.frequency.value = 1200 + (i * 200);
+            bandpass.Q.value = 2;
 
-            noise.gain.connect(bandpass);
+            // Highpass to remove mud
+            const highpass = ctx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.value = 800;
+
+            noise.gain.connect(highpass);
+            highpass.connect(bandpass);
             bandpass.connect(this.masterGain);
         });
+
+        // Add tail
+        const tail = this.createNoise(t + 0.03, 0.15, 0.15 * volume);
+        const tailFilter = ctx.createBiquadFilter();
+        tailFilter.type = 'bandpass';
+        tailFilter.frequency.value = 2500;
+        tailFilter.Q.value = 1.5;
+
+        tail.gain.connect(tailFilter);
+        tailFilter.connect(this.masterGain);
     }
 
     /**
@@ -267,28 +318,40 @@ class AudioEngine {
     }
 
     /**
-     * 808 KICK
+     * 808 KICK - Improved with harmonic distortion
      * Deep sub bass kick
      */
     play808Kick(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
+        // Main body
         const osc = ctx.createOscillator();
         const oscGain = ctx.createGain();
+        const distortion = ctx.createWaveShaper();
 
-        // Deeper pitch envelope
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(180, t);
-        osc.frequency.exponentialRampToValueAtTime(35, t + 0.08);
+        osc.frequency.exponentialRampToValueAtTime(32, t + 0.08);
 
-        oscGain.gain.setValueAtTime(volume * 1.2, t);
-        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+        // Subtle distortion for harmonics
+        const curve = new Float32Array(256);
+        for (let i = 0; i < 256; i++) {
+            const x = (i - 128) / 128;
+            curve[i] = Math.tanh(x * 1.5);
+        }
+        distortion.curve = curve;
 
-        osc.connect(oscGain);
+        oscGain.gain.setValueAtTime(volume * 1.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(volume * 0.7, t + 0.05);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+
+        osc.connect(distortion);
+        distortion.connect(oscGain);
         oscGain.connect(this.masterGain);
 
         osc.start(t);
-        osc.stop(t + 0.6);
+        osc.stop(t + 0.8);
     }
 
     /**
@@ -371,33 +434,44 @@ class AudioEngine {
     }
 
     /**
-     * REESE BASS (DnB)
+     * REESE BASS (DnB) - Improved with phase modulation
      */
     playReeseBass(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
-        // Two detuned oscillators for reese effect
-        const osc1 = ctx.createOscillator();
-        const osc2 = ctx.createOscillator();
+        // Multiple detuned saws for thick reese
+        const detunes = [-7, -3, 0, 3, 7];
+        const oscs = [];
         const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
 
-        osc1.type = 'sawtooth';
-        osc2.type = 'sawtooth';
-        osc1.frequency.value = 55; // A1
-        osc2.frequency.value = 58; // Slightly detuned
+        detunes.forEach(detune => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 55; // A1
+            osc.detune.value = detune;
+            osc.connect(filter);
+            oscs.push(osc);
+        });
 
-        oscGain.gain.setValueAtTime(volume * 0.6, t);
-        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+        // Low-pass filter with slight movement
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, t);
+        filter.frequency.linearRampToValueAtTime(600, t + 0.1);
+        filter.frequency.linearRampToValueAtTime(350, t + 0.3);
+        filter.Q.value = 2;
 
-        osc1.connect(oscGain);
-        osc2.connect(oscGain);
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+        filter.connect(oscGain);
         oscGain.connect(this.masterGain);
 
-        osc1.start(t);
-        osc1.stop(t + 0.3);
-        osc2.start(t);
-        osc2.stop(t + 0.3);
+        oscs.forEach(osc => {
+            osc.start(t);
+            osc.stop(t + 0.4);
+        });
     }
 
     /**
@@ -431,26 +505,48 @@ class AudioEngine {
     }
 
     /**
-     * SUB BASS
+     * SUB BASS - Improved with harmonic layer
      */
     playSubBass(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
-        const osc = ctx.createOscillator();
-        const oscGain = ctx.createGain();
+        // Sub layer (pure sine)
+        const sub = ctx.createOscillator();
+        const subGain = ctx.createGain();
 
-        osc.type = 'sine';
-        osc.frequency.value = 55; // A1
+        sub.type = 'sine';
+        sub.frequency.value = 55; // A1
 
-        oscGain.gain.setValueAtTime(volume * 0.8, t);
-        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        subGain.gain.setValueAtTime(volume * 1.0, t);
+        subGain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
 
-        osc.connect(oscGain);
-        oscGain.connect(this.masterGain);
+        sub.connect(subGain);
+        subGain.connect(this.masterGain);
 
-        osc.start(t);
-        osc.stop(t + 0.5);
+        // Harmonic layer for presence
+        const harmonic = ctx.createOscillator();
+        const harmonicGain = ctx.createGain();
+        const harmonicFilter = ctx.createBiquadFilter();
+
+        harmonic.type = 'sawtooth';
+        harmonic.frequency.value = 55;
+
+        harmonicFilter.type = 'lowpass';
+        harmonicFilter.frequency.value = 300;
+        harmonicFilter.Q.value = 1;
+
+        harmonicGain.gain.setValueAtTime(volume * 0.15, t);
+        harmonicGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+
+        harmonic.connect(harmonicFilter);
+        harmonicFilter.connect(harmonicGain);
+        harmonicGain.connect(this.masterGain);
+
+        sub.start(t);
+        sub.stop(t + 0.6);
+        harmonic.start(t);
+        harmonic.stop(t + 0.5);
     }
 
     /**
@@ -477,32 +573,44 @@ class AudioEngine {
     }
 
     /**
-     * PLUCK SYNTH
+     * PLUCK SYNTH - Improved with harmonics
      */
     playPluck(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
-        const osc = ctx.createOscillator();
+        // Multi-oscillator pluck
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
         const oscGain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
 
-        osc.type = 'triangle';
-        osc.frequency.value = 330; // E4
+        osc1.type = 'sawtooth';
+        osc2.type = 'triangle';
+        osc1.frequency.value = 330; // E4
+        osc2.frequency.value = 330;
+        osc2.detune.value = 5;
 
+        // Fast filter sweep for pluck
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(2000, t);
-        filter.frequency.exponentialRampToValueAtTime(200, t + 0.1);
+        filter.frequency.setValueAtTime(3500, t);
+        filter.frequency.exponentialRampToValueAtTime(150, t + 0.08);
+        filter.Q.value = 4;
 
-        oscGain.gain.setValueAtTime(volume * 0.5, t);
-        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+        // Pluck envelope
+        oscGain.gain.setValueAtTime(volume * 0.7, t);
+        oscGain.gain.exponentialRampToValueAtTime(volume * 0.3, t + 0.03);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
 
-        osc.connect(filter);
+        osc1.connect(filter);
+        osc2.connect(filter);
         filter.connect(oscGain);
         oscGain.connect(this.masterGain);
 
-        osc.start(t);
-        osc.stop(t + 0.15);
+        osc1.start(t);
+        osc1.stop(t + 0.2);
+        osc2.start(t);
+        osc2.stop(t + 0.2);
     }
 
     /**
@@ -948,6 +1056,674 @@ class AudioEngine {
     }
 
     /**
+     * HOOVER BASS (Classic Rave/House)
+     */
+    playHooverBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Multiple detuned saw waves for thick hoover sound
+        const oscs = [];
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        const detunes = [-25, -12, 0, 12, 25];
+        detunes.forEach(detune => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 65; // C2
+            osc.detune.value = detune;
+            osc.connect(oscGain);
+            oscs.push(osc);
+        });
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(600, t);
+        filter.frequency.linearRampToValueAtTime(1200, t + 0.15);
+        filter.frequency.linearRampToValueAtTime(400, t + 0.3);
+        filter.Q.value = 8;
+
+        oscGain.gain.setValueAtTime(volume * 0.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+        oscGain.connect(filter);
+        filter.connect(this.masterGain);
+
+        oscs.forEach(osc => {
+            osc.start(t);
+            osc.stop(t + 0.4);
+        });
+    }
+
+    /**
+     * SAW BASS (Modern House) - Improved with unison
+     */
+    playSawBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Unison saws for fatter sound
+        const detunes = [-15, -7, 0, 7, 15];
+        const oscs = [];
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        detunes.forEach(detune => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 65; // C2
+            osc.detune.value = detune;
+            osc.connect(filter);
+            oscs.push(osc);
+        });
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, t);
+        filter.frequency.exponentialRampToValueAtTime(250, t + 0.15);
+        filter.Q.value = 8;
+
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        oscs.forEach(osc => {
+            osc.start(t);
+            osc.stop(t + 0.3);
+        });
+    }
+
+    /**
+     * PIANO STAB (Classic House Piano) - Improved with harmonics
+     */
+    playPianoStab(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Piano chord (Am7) with harmonics
+        const notes = [
+            { freq: 220, harmonics: [1, 2, 3, 4] },      // A3
+            { freq: 261.63, harmonics: [1, 2, 3] },     // C4
+            { freq: 329.63, harmonics: [1, 2, 2.5] },   // E4
+            { freq: 392, harmonics: [1, 1.5, 2] }        // G4
+        ];
+
+        notes.forEach((note, noteIndex) => {
+            note.harmonics.forEach((harmonic, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = i === 0 ? 'triangle' : 'sine';
+                osc.frequency.value = note.freq * harmonic;
+
+                const vol = volume * (1 / (noteIndex + 1)) * 0.25 * (1 / (i + 1));
+
+                // Piano-like envelope: fast attack, slower decay
+                gain.gain.setValueAtTime(0, t);
+                gain.gain.linearRampToValueAtTime(vol * 1.3, t + 0.005);
+                gain.gain.linearRampToValueAtTime(vol, t + 0.02);
+                gain.gain.exponentialRampToValueAtTime(vol * 0.3, t + 0.2);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+
+                osc.start(t);
+                osc.stop(t + 0.8);
+            });
+        });
+
+        // Add subtle high-frequency click for attack
+        const click = ctx.createOscillator();
+        const clickGain = ctx.createGain();
+        const clickFilter = ctx.createBiquadFilter();
+
+        click.type = 'square';
+        click.frequency.value = 3000;
+
+        clickFilter.type = 'highpass';
+        clickFilter.frequency.value = 2000;
+
+        clickGain.gain.setValueAtTime(volume * 0.15, t);
+        clickGain.gain.exponentialRampToValueAtTime(0.01, t + 0.01);
+
+        click.connect(clickFilter);
+        clickFilter.connect(clickGain);
+        clickGain.connect(this.masterGain);
+
+        click.start(t);
+        click.stop(t + 0.01);
+    }
+
+    /**
+     * VOCAL CHOP (Sampled vocal effect) - Improved with formants
+     */
+    playVocalChop(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Source oscillator
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.value = 220; // A3
+
+        // Formant filters for vocal quality (simulating "ah" sound)
+        const formant1 = ctx.createBiquadFilter();
+        const formant2 = ctx.createBiquadFilter();
+        const formant3 = ctx.createBiquadFilter();
+
+        formant1.type = 'bandpass';
+        formant1.frequency.setValueAtTime(800, t);
+        formant1.frequency.linearRampToValueAtTime(950, t + 0.08);
+        formant1.Q.value = 8;
+
+        formant2.type = 'bandpass';
+        formant2.frequency.setValueAtTime(1150, t);
+        formant2.frequency.linearRampToValueAtTime(1300, t + 0.08);
+        formant2.Q.value = 6;
+
+        formant3.type = 'bandpass';
+        formant3.frequency.value = 2800;
+        formant3.Q.value = 4;
+
+        // Fast envelope for chop effect
+        oscGain.gain.setValueAtTime(0, t);
+        oscGain.gain.linearRampToValueAtTime(volume * 0.6, t + 0.005);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+
+        osc.connect(formant1);
+        formant1.connect(formant2);
+        formant2.connect(formant3);
+        formant3.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.1);
+    }
+
+    /**
+     * WHITE NOISE RISER (Build-up effect)
+     */
+    playRiser(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.5, 0.3 * volume);
+        const filter = ctx.createBiquadFilter();
+
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(500, t);
+        filter.frequency.exponentialRampToValueAtTime(8000, t + 0.5);
+        filter.Q.value = 2;
+
+        noise.gain.gain.setValueAtTime(0.1 * volume, t);
+        noise.gain.gain.linearRampToValueAtTime(0.4 * volume, t + 0.5);
+
+        noise.gain.connect(filter);
+        filter.connect(this.masterGain);
+    }
+
+    /**
+     * SIDE STICK (Modern percussion)
+     */
+    playSideStick(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'square';
+        osc.frequency.value = 600;
+
+        filter.type = 'highpass';
+        filter.frequency.value = 1000;
+        filter.Q.value = 1;
+
+        oscGain.gain.setValueAtTime(volume * 0.3, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.04);
+
+        osc.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        // Add click
+        const noise = this.createNoise(t, 0.03, 0.2 * volume);
+        noise.gain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.04);
+    }
+
+    /**
+     * SIDECHAIN KICK (Pumping house kick)
+     */
+    playSidechainKick(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.frequency.setValueAtTime(160, t);
+        osc.frequency.exponentialRampToValueAtTime(45, t + 0.06);
+
+        // Punchy envelope for sidechain effect
+        oscGain.gain.setValueAtTime(volume * 1.3, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.4);
+    }
+
+    /**
+     * WOBBLE BASS (Dubstep/Bass Music)
+     */
+    playWobbleBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Multiple detuned saws
+        const oscs = [];
+        const detunes = [-10, 0, 10];
+        const filter = ctx.createBiquadFilter();
+        const filterGain = ctx.createGain();
+
+        detunes.forEach(detune => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 55; // A1
+            osc.detune.value = detune;
+            osc.connect(filter);
+            oscs.push(osc);
+        });
+
+        // LFO for wobble
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+
+        lfo.frequency.value = 6; // 6 Hz wobble
+        lfoGain.gain.value = 800;
+
+        filter.type = 'lowpass';
+        filter.frequency.value = 1200;
+        filter.Q.value = 15; // High resonance for wobble
+
+        lfo.connect(lfoGain);
+        lfoGain.connect(filter.frequency);
+
+        filterGain.gain.setValueAtTime(volume * 0.6, t);
+        filterGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+
+        filter.connect(filterGain);
+        filterGain.connect(this.masterGain);
+
+        oscs.forEach(osc => {
+            osc.start(t);
+            osc.stop(t + 0.5);
+        });
+        lfo.start(t);
+        lfo.stop(t + 0.5);
+    }
+
+    /**
+     * TRAP HI-HAT (Fast rolling hi-hats)
+     */
+    playTrapHat(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.03, 0.2 * volume);
+
+        const highpass = ctx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 9000;
+
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 11000;
+        bandpass.Q.value = 2;
+
+        noise.gain.connect(highpass);
+        highpass.connect(bandpass);
+        bandpass.connect(this.masterGain);
+    }
+
+    /**
+     * SNARE ROLL (Trap/DnB)
+     */
+    playSnareRoll(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Quick snare hit for rolls
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.value = 200;
+
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        const noise = this.createNoise(t, 0.08, 0.3 * volume);
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 1500;
+
+        noise.gain.connect(filter);
+        filter.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.08);
+    }
+
+    /**
+     * TRANCE PLUCK (Uplifting Trance)
+     */
+    playTrancePluck(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc1.type = 'sawtooth';
+        osc2.type = 'sawtooth';
+        osc1.frequency.value = 523; // C5
+        osc2.frequency.value = 523;
+        osc2.detune.value = 8;
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(5000, t);
+        filter.frequency.exponentialRampToValueAtTime(800, t + 0.12);
+        filter.Q.value = 6;
+
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc1.start(t);
+        osc1.stop(t + 0.15);
+        osc2.start(t);
+        osc2.stop(t + 0.15);
+    }
+
+    /**
+     * AMBIENT PAD (Long, evolving pad)
+     */
+    playAmbientPad(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const oscs = [];
+        const detunes = [-12, -5, 0, 5, 12];
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        detunes.forEach(detune => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 130.81; // C3
+            osc.detune.value = detune;
+            osc.connect(filter);
+            oscs.push(osc);
+        });
+
+        filter.type = 'lowpass';
+        filter.frequency.value = 600;
+        filter.Q.value = 1;
+
+        // Slow attack for ambient
+        oscGain.gain.setValueAtTime(0, t);
+        oscGain.gain.linearRampToValueAtTime(volume * 0.2, t + 0.15);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 1.0);
+
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        oscs.forEach(osc => {
+            osc.start(t);
+            osc.stop(t + 1.0);
+        });
+    }
+
+    /**
+     * UK GARAGE SHUFFLE HAT
+     */
+    playShuffleHat(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.035, 0.25 * volume);
+
+        const highpass = ctx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 7500;
+
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 9500;
+        bandpass.Q.value = 2.5;
+
+        noise.gain.connect(highpass);
+        highpass.connect(bandpass);
+        bandpass.connect(this.masterGain);
+    }
+
+    /**
+     * ARPEGGIO (Trance/Techno)
+     */
+    playArpeggio(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'square';
+        osc.frequency.value = 659.25; // E5
+
+        filter.type = 'lowpass';
+        filter.frequency.value = 3000;
+        filter.Q.value = 3;
+
+        oscGain.gain.setValueAtTime(volume * 0.3, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+
+        osc.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.12);
+    }
+
+    /**
+     * LOFI KICK (Soft, warm kick)
+     */
+    playLofiKick(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(50, t + 0.04);
+
+        // Warm filter
+        filter.type = 'lowpass';
+        filter.frequency.value = 200;
+        filter.Q.value = 1;
+
+        oscGain.gain.setValueAtTime(volume * 0.9, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+
+        osc.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.35);
+    }
+
+    /**
+     * LOFI SNARE (Soft, dusty snare)
+     */
+    playLofiSnare(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Tonal part
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.value = 180;
+
+        oscGain.gain.setValueAtTime(volume * 0.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        // Noise (reduced for lofi feel)
+        const noise = this.createNoise(t, 0.12, 0.2 * volume);
+        const filter = ctx.createBiquadFilter();
+
+        filter.type = 'lowpass';
+        filter.frequency.value = 3000; // Less bright
+        filter.Q.value = 0.5;
+
+        noise.gain.connect(filter);
+        filter.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.15);
+    }
+
+    /**
+     * VINYL CRACKLE (Lofi texture)
+     */
+    playVinylCrackle(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Short crackle/pop
+        const noise = this.createNoise(t, 0.02, 0.12 * volume);
+        const filter = ctx.createBiquadFilter();
+
+        filter.type = 'bandpass';
+        filter.frequency.value = 2000 + Math.random() * 3000; // Random frequency
+        filter.Q.value = 4;
+
+        noise.gain.connect(filter);
+        filter.connect(this.masterGain);
+    }
+
+    /**
+     * JAZZ CHORD (Lofi piano chord)
+     */
+    playJazzChord(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Jazz chord (Dm7)
+        const freqs = [146.83, 174.61, 220, 261.63]; // D3, F3, A3, C4
+        const oscs = [];
+
+        freqs.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
+
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            osc.detune.value = (Math.random() - 0.5) * 10; // Slight detune for warmth
+
+            filter.type = 'lowpass';
+            filter.frequency.value = 1200; // Warm, muffled
+            filter.Q.value = 0.5;
+
+            const vol = volume * (1 / (i + 1)) * 0.3;
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(vol, t + 0.02);
+            gain.gain.exponentialRampToValueAtTime(vol * 0.4, t + 0.3);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+
+            osc.start(t);
+            osc.stop(t + 0.8);
+            oscs.push(osc);
+        });
+    }
+
+    /**
+     * LOFI HAT (Soft closed hat)
+     */
+    playLofiHat(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.04, 0.15 * volume);
+        const filter = ctx.createBiquadFilter();
+
+        filter.type = 'highpass';
+        filter.frequency.value = 5000; // Less bright than regular
+        filter.Q.value = 0.5;
+
+        noise.gain.connect(filter);
+        filter.connect(this.masterGain);
+    }
+
+    /**
+     * TAPE STOP (Lofi pitch drop effect)
+     */
+    playTapeStop(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.exponentialRampToValueAtTime(55, t + 0.3); // Pitch drop
+
+        oscGain.gain.setValueAtTime(volume * 0.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.3);
+    }
+
+    /**
      * Play instrument by name
      */
     playInstrumentByName(instrumentName, time = 0, volume = 1) {
@@ -1058,6 +1834,69 @@ class AudioEngine {
             case 'noise':
                 this.playNoiseBurst(time, volume);
                 break;
+            case 'riser':
+                this.playRiser(time, volume);
+                break;
+            // Modern House
+            case 'hoover-bass':
+                this.playHooverBass(time, volume);
+                break;
+            case 'saw-bass':
+                this.playSawBass(time, volume);
+                break;
+            case 'piano-stab':
+                this.playPianoStab(time, volume);
+                break;
+            case 'vocal-chop':
+                this.playVocalChop(time, volume);
+                break;
+            case 'side-stick':
+                this.playSideStick(time, volume);
+                break;
+            case 'sidechain-kick':
+                this.playSidechainKick(time, volume);
+                break;
+            // Genre-specific
+            case 'wobble-bass':
+                this.playWobbleBass(time, volume);
+                break;
+            case 'trap-hat':
+                this.playTrapHat(time, volume);
+                break;
+            case 'snare-roll':
+                this.playSnareRoll(time, volume);
+                break;
+            case 'trance-pluck':
+                this.playTrancePluck(time, volume);
+                break;
+            case 'ambient-pad':
+                this.playAmbientPad(time, volume);
+                break;
+            case 'shuffle-hat':
+                this.playShuffleHat(time, volume);
+                break;
+            case 'arpeggio':
+                this.playArpeggio(time, volume);
+                break;
+            // Lofi
+            case 'lofi-kick':
+                this.playLofiKick(time, volume);
+                break;
+            case 'lofi-snare':
+                this.playLofiSnare(time, volume);
+                break;
+            case 'lofi-hat':
+                this.playLofiHat(time, volume);
+                break;
+            case 'vinyl-crackle':
+                this.playVinylCrackle(time, volume);
+                break;
+            case 'jazz-chord':
+                this.playJazzChord(time, volume);
+                break;
+            case 'tape-stop':
+                this.playTapeStop(time, volume);
+                break;
         }
     }
 
@@ -1077,71 +1916,91 @@ const audioEngine = new AudioEngine();
 // Available instruments list (grouped by category)
 const AVAILABLE_INSTRUMENTS = [
     {
-        category: 'Kicks',
-        instruments: [
-            { name: 'kick', displayName: 'Kick' },
-            { name: '808-kick', displayName: '808 Kick' },
-            { name: 'hard-kick', displayName: 'Hard Kick' }
-        ]
-    },
-    {
-        category: 'Snares',
-        instruments: [
-            { name: 'snare', displayName: 'Snare' },
-            { name: 'punchy-snare', displayName: 'Punchy Snare' },
-            { name: '808-snare', displayName: '808 Snare' }
-        ]
-    },
-    {
-        category: 'Hats & Cymbals',
-        instruments: [
-            { name: 'hihat', displayName: 'Hi-Hat' },
-            { name: 'openhat', displayName: 'Open HH' },
-            { name: 'crash', displayName: 'Crash' },
-            { name: 'ride', displayName: 'Ride' }
-        ]
-    },
-    {
-        category: 'Percussion',
-        instruments: [
-            { name: 'clap', displayName: 'Clap' },
-            { name: 'tom', displayName: 'Tom' },
-            { name: 'rimshot', displayName: 'Rimshot' },
-            { name: 'cowbell', displayName: 'Cowbell' },
-            { name: 'bongo', displayName: 'Bongo' },
-            { name: 'conga', displayName: 'Conga' },
-            { name: 'timbale', displayName: 'Timbale' },
-            { name: 'perc', displayName: 'Shaker' }
-        ]
-    },
-    {
         category: 'Bass',
         instruments: [
-            { name: 'bass', displayName: 'Bass' },
-            { name: 'sub-bass', displayName: 'Sub Bass' },
-            { name: 'reese-bass', displayName: 'Reese Bass' },
             { name: 'acid-bass', displayName: 'Acid Bass' },
-            { name: 'fm-bass', displayName: 'FM Bass' }
-        ]
-    },
-    {
-        category: 'Synths',
-        instruments: [
-            { name: 'stab', displayName: 'Stab' },
-            { name: 'pluck', displayName: 'Pluck' },
-            { name: 'lead', displayName: 'Lead' },
-            { name: 'pad', displayName: 'Pad' },
-            { name: 'bell', displayName: 'Bell' },
-            { name: 'chord', displayName: 'Chord' },
-            { name: 'vocal', displayName: 'Vocal' }
+            { name: 'bass', displayName: 'Bass' },
+            { name: 'fm-bass', displayName: 'FM Bass' },
+            { name: 'hoover-bass', displayName: 'Hoover Bass' },
+            { name: 'reese-bass', displayName: 'Reese Bass' },
+            { name: 'saw-bass', displayName: 'Saw Bass' },
+            { name: 'sub-bass', displayName: 'Sub Bass' },
+            { name: 'wobble-bass', displayName: 'Wobble Bass' }
         ]
     },
     {
         category: 'FX',
         instruments: [
-            { name: 'zap', displayName: 'Zap' },
             { name: 'blip', displayName: 'Blip' },
-            { name: 'noise', displayName: 'Noise' }
+            { name: 'noise', displayName: 'Noise' },
+            { name: 'riser', displayName: 'Riser' },
+            { name: 'tape-stop', displayName: 'Tape Stop' },
+            { name: 'vinyl-crackle', displayName: 'Vinyl Crackle' },
+            { name: 'zap', displayName: 'Zap' }
+        ]
+    },
+    {
+        category: 'Hats & Cymbals',
+        instruments: [
+            { name: 'crash', displayName: 'Crash' },
+            { name: 'hihat', displayName: 'Hi-Hat' },
+            { name: 'lofi-hat', displayName: 'Lofi Hat' },
+            { name: 'openhat', displayName: 'Open HH' },
+            { name: 'ride', displayName: 'Ride' },
+            { name: 'shuffle-hat', displayName: 'Shuffle Hat' },
+            { name: 'trap-hat', displayName: 'Trap Hat' }
+        ]
+    },
+    {
+        category: 'Kicks',
+        instruments: [
+            { name: '808-kick', displayName: '808 Kick' },
+            { name: 'hard-kick', displayName: 'Hard Kick' },
+            { name: 'kick', displayName: 'Kick' },
+            { name: 'lofi-kick', displayName: 'Lofi Kick' }
+        ]
+    },
+    {
+        category: 'Percussion',
+        instruments: [
+            { name: 'bongo', displayName: 'Bongo' },
+            { name: 'clap', displayName: 'Clap' },
+            { name: 'conga', displayName: 'Conga' },
+            { name: 'cowbell', displayName: 'Cowbell' },
+            { name: 'rimshot', displayName: 'Rimshot' },
+            { name: 'perc', displayName: 'Shaker' },
+            { name: 'side-stick', displayName: 'Side Stick' },
+            { name: 'snare-roll', displayName: 'Snare Roll' },
+            { name: 'timbale', displayName: 'Timbale' },
+            { name: 'tom', displayName: 'Tom' }
+        ]
+    },
+    {
+        category: 'Snares',
+        instruments: [
+            { name: '808-snare', displayName: '808 Snare' },
+            { name: 'lofi-snare', displayName: 'Lofi Snare' },
+            { name: 'punchy-snare', displayName: 'Punchy Snare' },
+            { name: 'snare', displayName: 'Snare' }
+        ]
+    },
+    {
+        category: 'Synths',
+        instruments: [
+            { name: 'ambient-pad', displayName: 'Ambient Pad' },
+            { name: 'arpeggio', displayName: 'Arpeggio' },
+            { name: 'bell', displayName: 'Bell' },
+            { name: 'chord', displayName: 'Chord' },
+            { name: 'jazz-chord', displayName: 'Jazz Chord' },
+            { name: 'lead', displayName: 'Lead' },
+            { name: 'pad', displayName: 'Pad' },
+            { name: 'piano-stab', displayName: 'Piano Stab' },
+            { name: 'pluck', displayName: 'Pluck' },
+            { name: 'sidechain-kick', displayName: 'SC Kick' },
+            { name: 'stab', displayName: 'Stab' },
+            { name: 'trance-pluck', displayName: 'Trance Pluck' },
+            { name: 'vocal', displayName: 'Vocal' },
+            { name: 'vocal-chop', displayName: 'Vocal Chop' }
         ]
     }
 ];
