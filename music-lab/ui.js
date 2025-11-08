@@ -24,6 +24,7 @@ class UI {
         this.setupTrackControls();
         this.setupPatternButtons();
         this.setupKeyboardShortcuts();
+        this.setupMobileInterface();
 
         // Connect sequencer callbacks
         sequencer.onStepChange = (step) => this.updateStepIndicator(step);
@@ -36,6 +37,7 @@ class UI {
 
         // Set initial channel selection
         this.updateChannelSelection();
+        this.updateMobileView();
     }
 
     /**
@@ -348,6 +350,199 @@ class UI {
         this.gridContainer.addEventListener('click', () => {
             sequencer.save('autosave');
         });
+
+        // Mobile controls
+        this.setupMobileControls();
+    }
+
+    /**
+     * Setup mobile-specific controls
+     */
+    setupMobileControls() {
+        // Mobile play/pause/stop buttons
+        const mobilePlayBtn = document.getElementById('mobilePlayBtn');
+        const mobilePauseBtn = document.getElementById('mobilePauseBtn');
+        const mobileStopBtn = document.getElementById('mobileStopBtn');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+
+        if (mobilePlayBtn) {
+            mobilePlayBtn.addEventListener('click', () => {
+                sequencer.play();
+                this.updateMobileControlButtons('playing');
+            });
+        }
+
+        if (mobilePauseBtn) {
+            mobilePauseBtn.addEventListener('click', () => {
+                sequencer.pause();
+                this.updateMobileControlButtons('paused');
+            });
+        }
+
+        if (mobileStopBtn) {
+            mobileStopBtn.addEventListener('click', () => {
+                sequencer.stop();
+                this.updateMobileControlButtons('stopped');
+            });
+        }
+
+        // Mobile menu
+        const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+        const mobileMenuClose = document.getElementById('mobileMenuClose');
+
+        if (mobileMenuBtn && mobileMenuOverlay) {
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileMenuOverlay.classList.add('active');
+            });
+        }
+
+        if (mobileMenuClose && mobileMenuOverlay) {
+            mobileMenuClose.addEventListener('click', () => {
+                mobileMenuOverlay.classList.remove('active');
+            });
+
+            // Close on overlay click
+            mobileMenuOverlay.addEventListener('click', (e) => {
+                if (e.target === mobileMenuOverlay) {
+                    mobileMenuOverlay.classList.remove('active');
+                }
+            });
+        }
+
+        // Mobile preset selector
+        const mobilePresetSelect = document.getElementById('mobilePresetSelect');
+        if (mobilePresetSelect) {
+            mobilePresetSelect.addEventListener('change', (e) => {
+                const presetId = e.target.value;
+                if (presetId && loadPreset(presetId)) {
+                    const bpmSlider = document.getElementById('bpmSlider');
+                    const bpmValue = document.getElementById('bpmValue');
+                    const mobileBpmSlider = document.getElementById('mobileBpmSlider');
+                    const mobileBpmValue = document.getElementById('mobileBpmValue');
+
+                    if (bpmSlider) bpmSlider.value = sequencer.bpm;
+                    if (bpmValue) bpmValue.textContent = sequencer.bpm;
+                    if (mobileBpmSlider) mobileBpmSlider.value = sequencer.bpm;
+                    if (mobileBpmValue) mobileBpmValue.textContent = sequencer.bpm;
+
+                    for (let i = 0; i < sequencer.tracks; i++) {
+                        const instrumentName = sequencer.getTrackInstrument(i);
+                        this.updateInstrumentSelector(i, instrumentName);
+                    }
+
+                    this.updateGrid();
+                    sequencer.switchPattern(0);
+                    sequencer.save('autosave');
+
+                    setTimeout(() => {
+                        mobilePresetSelect.value = '';
+                    }, 100);
+
+                    // Close menu
+                    if (mobileMenuOverlay) {
+                        mobileMenuOverlay.classList.remove('active');
+                    }
+                }
+            });
+        }
+
+        // Mobile clear button
+        const mobileClearBtn = document.getElementById('mobileClearBtn');
+        if (mobileClearBtn) {
+            mobileClearBtn.addEventListener('click', () => {
+                if (confirm('Clear current pattern?')) {
+                    sequencer.clear();
+                    this.updateGrid();
+                    sequencer.save('autosave');
+                    if (mobileMenuOverlay) {
+                        mobileMenuOverlay.classList.remove('active');
+                    }
+                }
+            });
+        }
+
+        // Mobile export/import
+        const mobileExportBtn = document.getElementById('mobileExportBtn');
+        const mobileImportBtn = document.getElementById('mobileImportBtn');
+        const mobileImportFile = document.getElementById('mobileImportFile');
+
+        if (mobileExportBtn) {
+            mobileExportBtn.addEventListener('click', () => {
+                this.exportProject();
+                if (mobileMenuOverlay) {
+                    mobileMenuOverlay.classList.remove('active');
+                }
+            });
+        }
+
+        if (mobileImportBtn && mobileImportFile) {
+            mobileImportBtn.addEventListener('click', () => {
+                mobileImportFile.click();
+            });
+
+            mobileImportFile.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    this.importProject(file);
+                    mobileImportFile.value = '';
+                    if (mobileMenuOverlay) {
+                        mobileMenuOverlay.classList.remove('active');
+                    }
+                }
+            });
+        }
+
+        // Mobile BPM slider
+        const mobileBpmSlider = document.getElementById('mobileBpmSlider');
+        const mobileBpmValue = document.getElementById('mobileBpmValue');
+
+        if (mobileBpmSlider && mobileBpmValue) {
+            mobileBpmSlider.addEventListener('input', (e) => {
+                const bpm = parseInt(e.target.value);
+                sequencer.setBPM(bpm);
+                mobileBpmValue.textContent = bpm;
+
+                // Sync with desktop slider
+                const bpmSlider = document.getElementById('bpmSlider');
+                const bpmValue = document.getElementById('bpmValue');
+                if (bpmSlider) bpmSlider.value = bpm;
+                if (bpmValue) bpmValue.textContent = bpm;
+
+                sequencer.save('autosave');
+            });
+        }
+    }
+
+    /**
+     * Update mobile control buttons state
+     */
+    updateMobileControlButtons(state) {
+        const mobilePlayBtn = document.getElementById('mobilePlayBtn');
+        const mobilePauseBtn = document.getElementById('mobilePauseBtn');
+        const mobileStopBtn = document.getElementById('mobileStopBtn');
+
+        if (!mobilePlayBtn || !mobilePauseBtn || !mobileStopBtn) return;
+
+        switch(state) {
+            case 'playing':
+                mobilePlayBtn.disabled = true;
+                mobilePauseBtn.disabled = false;
+                mobileStopBtn.disabled = false;
+                break;
+            case 'paused':
+                mobilePlayBtn.disabled = false;
+                mobilePauseBtn.disabled = true;
+                mobileStopBtn.disabled = false;
+                break;
+            case 'stopped':
+                mobilePlayBtn.disabled = false;
+                mobilePauseBtn.disabled = true;
+                mobileStopBtn.disabled = true;
+                break;
+        }
+
+        // Also update desktop buttons
+        this.updateControlButtons(state);
     }
 
     /**
@@ -721,6 +916,115 @@ class UI {
                 sequencer.save('autosave');
             }
         });
+    }
+
+    /**
+     * Setup mobile interface with track selector tabs
+     */
+    setupMobileInterface() {
+        const mobileSelector = document.getElementById('mobileTrackSelector');
+        if (!mobileSelector) return;
+
+        // Create mobile track tabs
+        for (let i = 0; i < sequencer.tracks; i++) {
+            const tab = document.createElement('div');
+            tab.className = 'mobile-track-tab';
+            tab.dataset.track = i;
+            tab.textContent = sequencer.getTrackName(i);
+
+            // Make first tab active
+            if (i === 0) {
+                tab.classList.add('active');
+            }
+
+            // Click handler
+            tab.addEventListener('click', () => {
+                this.selectChannel(i);
+                this.updateMobileView();
+            });
+
+            mobileSelector.appendChild(tab);
+        }
+
+        // Update tabs when instruments change
+        const originalUpdateInstrumentSelector = this.updateInstrumentSelector.bind(this);
+        this.updateInstrumentSelector = (track, instrumentName) => {
+            originalUpdateInstrumentSelector(track, instrumentName);
+            this.updateMobileTrackTabs();
+        };
+    }
+
+    /**
+     * Update mobile view to show only selected track
+     */
+    updateMobileView() {
+        if (window.innerWidth > 768) return; // Only on mobile
+
+        // Update track tabs
+        this.updateMobileTrackTabs();
+
+        // Show only selected track controls
+        const allTrackControls = document.querySelectorAll('.track-control');
+        const trackControlsContainer = document.querySelector('.track-controls');
+
+        if (trackControlsContainer) {
+            trackControlsContainer.classList.add('mobile-visible');
+
+            // Show only the selected track control
+            allTrackControls.forEach((control, index) => {
+                control.classList.remove('mobile-selected');
+                if (index === this.selectedChannel) {
+                    control.classList.add('mobile-selected');
+                }
+            });
+        }
+
+        // Show only selected track in 4x4 grid
+        const gridContainer = document.querySelector('.grid-container');
+        if (gridContainer) {
+            gridContainer.classList.add('mobile-visible');
+
+            // Hide all cells first
+            this.gridCells.forEach(trackCells => {
+                trackCells.forEach(cell => {
+                    cell.style.display = 'none';
+                });
+            });
+
+            // Show only selected track cells (16 cells in 4x4 grid)
+            if (this.gridCells[this.selectedChannel]) {
+                this.gridCells[this.selectedChannel].forEach(cell => {
+                    cell.style.display = 'flex';
+                });
+            }
+        }
+    }
+
+    /**
+     * Update mobile track tabs
+     */
+    updateMobileTrackTabs() {
+        const tabs = document.querySelectorAll('.mobile-track-tab');
+        tabs.forEach((tab, index) => {
+            const isActive = index === this.selectedChannel;
+            const isMuted = sequencer.isTrackMuted(index);
+            const trackName = sequencer.getTrackName(index);
+
+            tab.classList.toggle('active', isActive);
+            tab.classList.toggle('muted', isMuted);
+            tab.textContent = trackName;
+        });
+    }
+
+    /**
+     * Override selectChannel to update mobile view
+     */
+    selectChannel(channel) {
+        if (channel >= 0 && channel < sequencer.tracks) {
+            this.selectedChannel = channel;
+            this.updateChannelSelection();
+            this.updateMobileView();
+        }
     }
 }
 
