@@ -904,6 +904,16 @@ class UI {
     }
 
     /**
+     * Update volume slider UI for a track
+     */
+    updateVolumeSlider(track, volume) {
+        const volumeSlider = document.querySelector(`.volume-slider[data-track="${track}"]`);
+        if (volumeSlider) {
+            volumeSlider.value = volume;
+        }
+    }
+
+    /**
      * Export project as JSON
      */
     exportProject() {
@@ -1006,6 +1016,17 @@ class UI {
                 return;
             }
 
+            // Debug: log key info for + and - keys
+            if (e.key === '-' || e.key === '+' || e.key === '=' || e.code === 'Minus' || e.code === 'Equal') {
+                console.log('Key pressed:', {
+                    key: e.key,
+                    code: e.code,
+                    shiftKey: e.shiftKey,
+                    ctrlKey: e.ctrlKey,
+                    metaKey: e.metaKey
+                });
+            }
+
             // Spacebar = play/pause
             if (e.code === 'Space') {
                 e.preventDefault();
@@ -1063,6 +1084,30 @@ class UI {
                 sequencer.toggleSolo(this.selectedChannel);
                 this.updateTrackControlsUI();
                 sequencer.save('autosave');
+            }
+
+            // Arrow Up = increase volume of selected channel
+            if (!e.ctrlKey && !e.metaKey && e.code === 'ArrowUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                const currentVolume = (sequencer.trackVolumes[this.selectedChannel] || 0.7) * 100; // Convert 0-1 to 0-100
+                const newVolume = Math.min(100, currentVolume + 5);
+                sequencer.setTrackVolume(this.selectedChannel, newVolume);
+                this.updateVolumeSlider(this.selectedChannel, newVolume);
+                sequencer.save('autosave');
+                return;
+            }
+
+            // Arrow Down = decrease volume of selected channel
+            if (!e.ctrlKey && !e.metaKey && e.code === 'ArrowDown') {
+                e.preventDefault();
+                e.stopPropagation();
+                const currentVolume = (sequencer.trackVolumes[this.selectedChannel] || 0.7) * 100; // Convert 0-1 to 0-100
+                const newVolume = Math.max(5, currentVolume - 5);
+                sequencer.setTrackVolume(this.selectedChannel, newVolume);
+                this.updateVolumeSlider(this.selectedChannel, newVolume);
+                sequencer.save('autosave');
+                return;
             }
 
             // A, B, C, D = switch patterns (without Shift)
@@ -1208,5 +1253,12 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Keyboard shortcuts:');
     console.log('  Space - Play/Pause');
     console.log('  Escape - Stop');
+    console.log('  1-8 - Select channel');
     console.log('  A/B/C/D - Switch patterns');
+    console.log('  Shift + C - Clear selected channel');
+    console.log('  Shift + R - Random fill selected channel');
+    console.log('  Shift + M - Mute toggle selected channel');
+    console.log('  Shift + S - Solo toggle selected channel');
+    console.log('  Arrow Up - Increase volume selected channel');
+    console.log('  Arrow Down - Decrease volume selected channel');
 });
