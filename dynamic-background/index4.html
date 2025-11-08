@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Background - Mouse</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 100vw;
+            height: 200vh;
+            overflow-x: hidden;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+        let prevMouseX = mouseX;
+        let prevMouseY = mouseY;
+        let scrollOffset = 0;
+        let speed = 0;
+
+        // Smooth waarden voor vloeiende animatie
+        let smoothX = mouseX;
+        let smoothY = mouseY;
+        let smoothSpeed = 0;
+
+        // Track muis positie
+        document.addEventListener('mousemove', (e) => {
+            prevMouseX = mouseX;
+            prevMouseY = mouseY;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        // Track scroll
+        window.addEventListener('scroll', () => {
+            scrollOffset = window.scrollY;
+        });
+
+        function animate() {
+            // Bereken snelheid van muis beweging
+            const deltaX = mouseX - prevMouseX;
+            const deltaY = mouseY - prevMouseY;
+            speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            // Smooth interpolatie
+            smoothX += (mouseX - smoothX) * 0.1;
+            smoothY += (mouseY - smoothY) * 0.1;
+            smoothSpeed += (speed - smoothSpeed) * 0.1;
+
+            // Bereken richting van beweging
+            const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+
+            // Muis positie in percentages
+            const xPercent = (smoothX / window.innerWidth) * 100;
+            const yPercent = (smoothY / window.innerHeight) * 100;
+
+            // Kleuren gebaseerd op positie en snelheid
+            const hue1 = (xPercent * 3.6 + scrollOffset * 0.5) % 360;
+            const hue2 = (yPercent * 3.6 + scrollOffset * 0.5 + 120) % 360;
+            const hue3 = ((xPercent + yPercent) * 1.8 + scrollOffset * 0.5 + 240) % 360;
+
+            // Saturatie en lightness gebaseerd op snelheid
+            const baseSaturation = 60;
+            const saturation = Math.min(baseSaturation + smoothSpeed * 2, 100);
+            const lightness = Math.max(70 - smoothSpeed * 0.5, 50);
+
+            const color1 = `hsl(${hue1}, ${saturation}%, ${lightness}%)`;
+            const color2 = `hsl(${hue2}, ${saturation}%, ${lightness}%)`;
+            const color3 = `hsl(${hue3}, ${saturation}%, ${lightness}%)`;
+
+            // Gradient volgt muis
+            document.body.style.background = `
+                radial-gradient(ellipse at ${xPercent}% ${yPercent}%, ${color1} 0%, transparent 50%),
+                radial-gradient(ellipse at ${100 - xPercent}% ${100 - yPercent}%, ${color2} 0%, transparent 50%),
+                linear-gradient(${angle}deg, ${color3}, ${color2})
+            `;
+            document.body.style.filter = 'blur(60px)';
+
+            // Reset speed voor volgende frame
+            prevMouseX = mouseX;
+            prevMouseY = mouseY;
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
