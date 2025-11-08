@@ -16,6 +16,10 @@ class Sequencer {
             this.patterns[i] = this.createEmptyPattern();
         }
 
+        // Track instrument mapping (wat speelt elk kanaal)
+        this.trackInstruments = ['kick', 'snare', 'hihat', 'clap', 'tom', 'openhat', 'bass', 'perc'];
+        this.trackNames = ['Kick', 'Snare', 'Hi-Hat', 'Clap', 'Tom', 'Open HH', 'Bass', 'Perc'];
+
         // Track controls (shared across patterns)
         this.trackVolumes = [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]; // Volume per track (0-1)
         this.trackMuted = [false, false, false, false, false, false, false, false]; // Mute state per track
@@ -34,6 +38,7 @@ class Sequencer {
         // Callbacks
         this.onStepChange = null; // Callback voor UI updates
         this.onPatternChange = null; // Callback voor pattern change
+        this.onInstrumentChange = null; // Callback voor instrument change
     }
 
     /**
@@ -73,6 +78,16 @@ class Sequencer {
     }
 
     /**
+     * Set een note direct (voor preset loading)
+     */
+    setNote(track, step, value, patternIndex = null) {
+        const pattern = patternIndex !== null ? this.patterns[patternIndex] : this.getPattern();
+        if (track >= 0 && track < this.tracks && step >= 0 && step < this.steps) {
+            pattern[track][step] = value;
+        }
+    }
+
+    /**
      * Switch to a different pattern
      */
     switchPattern(patternIndex) {
@@ -108,6 +123,36 @@ class Sequencer {
      */
     setBPM(bpm) {
         this.bpm = Math.max(60, Math.min(200, bpm));
+    }
+
+    /**
+     * Set instrument voor een track
+     */
+    setTrackInstrument(track, instrumentName, displayName = null) {
+        if (track >= 0 && track < this.tracks) {
+            this.trackInstruments[track] = instrumentName;
+            if (displayName) {
+                this.trackNames[track] = displayName;
+            }
+
+            if (this.onInstrumentChange) {
+                this.onInstrumentChange(track, instrumentName, displayName);
+            }
+        }
+    }
+
+    /**
+     * Get instrument voor een track
+     */
+    getTrackInstrument(track) {
+        return this.trackInstruments[track];
+    }
+
+    /**
+     * Get display name voor een track
+     */
+    getTrackName(track) {
+        return this.trackNames[track];
     }
 
     /**
@@ -261,7 +306,8 @@ class Sequencer {
 
                 if (shouldPlay) {
                     const volume = this.trackVolumes[track];
-                    audioEngine.playInstrument(track, time, volume);
+                    const instrument = this.trackInstruments[track];
+                    audioEngine.playInstrumentByName(instrument, time, volume);
                 }
             }
         }
@@ -382,7 +428,9 @@ class Sequencer {
             currentPattern: this.currentPattern,
             trackVolumes: this.trackVolumes,
             trackMuted: this.trackMuted,
-            trackSolo: this.trackSolo
+            trackSolo: this.trackSolo,
+            trackInstruments: this.trackInstruments,
+            trackNames: this.trackNames
         };
         localStorage.setItem(`sequencer_${name}`, JSON.stringify(data));
     }
@@ -439,6 +487,14 @@ class Sequencer {
                     this.trackSolo = [...data.trackSolo, ...new Array(8 - data.trackSolo.length).fill(false)];
                 } else {
                     this.trackSolo = data.trackSolo || [false, false, false, false, false, false, false, false];
+                }
+
+                // Load track instruments and names
+                if (data.trackInstruments) {
+                    this.trackInstruments = data.trackInstruments;
+                }
+                if (data.trackNames) {
+                    this.trackNames = data.trackNames;
                 }
 
                 return true;

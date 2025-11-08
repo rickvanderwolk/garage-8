@@ -18,6 +18,7 @@ class UI {
     init() {
         this.createGrid();
         this.createStepIndicators();
+        this.populateInstrumentSelectors();
         this.setupControls();
         this.setupTrackControls();
         this.setupPatternButtons();
@@ -26,6 +27,7 @@ class UI {
         // Connect sequencer callbacks
         sequencer.onStepChange = (step) => this.updateStepIndicator(step);
         sequencer.onPatternChange = (patternIndex) => this.onPatternChange(patternIndex);
+        sequencer.onInstrumentChange = (track, instrumentName, displayName) => this.updateInstrumentSelector(track, instrumentName);
 
         // Load demo pattern
         sequencer.loadDemoPattern();
@@ -55,7 +57,8 @@ class UI {
                     // Preview sound (alleen als niet playing)
                     if (!sequencer.isPlaying) {
                         audioEngine.init();
-                        audioEngine.playInstrument(track);
+                        const instrument = sequencer.getTrackInstrument(track);
+                        audioEngine.playInstrumentByName(instrument);
                     }
                 });
 
@@ -75,6 +78,54 @@ class UI {
             indicator.textContent = i + 1;
             this.stepIndicators.appendChild(indicator);
             this.currentStepCells.push(indicator);
+        }
+    }
+
+    /**
+     * Populate instrument selectors with all available instruments
+     */
+    populateInstrumentSelectors() {
+        const selectors = document.querySelectorAll('.instrument-select');
+
+        selectors.forEach((select, track) => {
+            // Clear existing options
+            select.innerHTML = '';
+
+            // Add all available instruments
+            AVAILABLE_INSTRUMENTS.forEach(instrument => {
+                const option = document.createElement('option');
+                option.value = instrument.name;
+                option.textContent = instrument.displayName;
+                select.appendChild(option);
+            });
+
+            // Set current selection
+            const currentInstrument = sequencer.getTrackInstrument(track);
+            select.value = currentInstrument;
+
+            // Add change listener
+            select.addEventListener('change', (e) => {
+                const instrumentName = e.target.value;
+                const instrument = AVAILABLE_INSTRUMENTS.find(i => i.name === instrumentName);
+                if (instrument) {
+                    sequencer.setTrackInstrument(track, instrument.name, instrument.displayName);
+                    sequencer.save('autosave');
+
+                    // Preview sound
+                    audioEngine.init();
+                    audioEngine.playInstrumentByName(instrument.name);
+                }
+            });
+        });
+    }
+
+    /**
+     * Update instrument selector for a specific track
+     */
+    updateInstrumentSelector(track, instrumentName) {
+        const selectors = document.querySelectorAll('.instrument-select');
+        if (selectors[track]) {
+            selectors[track].value = instrumentName;
         }
     }
 
@@ -140,6 +191,7 @@ class UI {
         const clearBtn = document.getElementById('clearBtn');
         const bpmSlider = document.getElementById('bpmSlider');
         const bpmValue = document.getElementById('bpmValue');
+        const presetSelect = document.getElementById('presetSelect');
 
         // Play button
         playBtn.addEventListener('click', () => {
@@ -177,12 +229,48 @@ class UI {
             sequencer.save('autosave'); // Auto-save
         });
 
+        // Preset selector
+        presetSelect.addEventListener('change', (e) => {
+            const presetId = e.target.value;
+            if (presetId && loadPreset(presetId)) {
+                // Update BPM display
+                bpmSlider.value = sequencer.bpm;
+                bpmValue.textContent = sequencer.bpm;
+
+                // Update instrument selectors
+                for (let i = 0; i < sequencer.tracks; i++) {
+                    const instrumentName = sequencer.getTrackInstrument(i);
+                    this.updateInstrumentSelector(i, instrumentName);
+                }
+
+                // Update grid
+                this.updateGrid();
+
+                // Switch to pattern A
+                sequencer.switchPattern(0);
+
+                // Save after loading preset
+                sequencer.save('autosave');
+
+                // Reset selector
+                setTimeout(() => {
+                    presetSelect.value = '';
+                }, 100);
+            }
+        });
+
         // Load saved patterns
         if (sequencer.load('autosave')) {
             bpmSlider.value = sequencer.bpm;
             bpmValue.textContent = sequencer.bpm;
             this.updateGrid();
             this.updateTrackControlsUI();
+
+            // Update instrument selectors
+            for (let i = 0; i < sequencer.tracks; i++) {
+                const instrumentName = sequencer.getTrackInstrument(i);
+                this.updateInstrumentSelector(i, instrumentName);
+            }
 
             // Update pattern button states
             const currentPattern = sequencer.getCurrentPattern();
@@ -255,6 +343,29 @@ class UI {
                 sequencer.save('autosave');
             });
         });
+    }
+
+    /**
+     * Update track name in UI
+     */
+    updateTrackName(track, displayName) {
+        const trackControls = document.querySelectorAll('.track-control');
+        if (trackControls[track]) {
+            const trackNameElement = trackControls[track].querySelector('.track-name');
+            if (trackNameElement) {
+                trackNameElement.textContent = displayName;
+            }
+        }
+    }
+
+    /**
+     * Update all track names from sequencer
+     */
+    updateAllTrackNames() {
+        for (let i = 0; i < sequencer.tracks; i++) {
+            const displayName = sequencer.getTrackName(i);
+            this.updateTrackName(i, displayName);
+        }
     }
 
     /**

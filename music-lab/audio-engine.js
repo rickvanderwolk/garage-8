@@ -267,18 +267,310 @@ class AudioEngine {
     }
 
     /**
-     * Play instrument by index
+     * 808 KICK
+     * Deep sub bass kick
      */
-    playInstrument(instrumentIndex, time = 0, volume = 1) {
-        const instruments = ['kick', 'snare', 'hihat', 'clap', 'tom', 'openhat', 'bass', 'perc'];
-        const instrument = instruments[instrumentIndex];
+    play808Kick(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
 
-        switch(instrument) {
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        // Deeper pitch envelope
+        osc.frequency.setValueAtTime(180, t);
+        osc.frequency.exponentialRampToValueAtTime(35, t + 0.08);
+
+        oscGain.gain.setValueAtTime(volume * 1.2, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.6);
+    }
+
+    /**
+     * HARD KICK (Techno)
+     * Punchy, short kick
+     */
+    playHardKick(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.frequency.setValueAtTime(200, t);
+        osc.frequency.exponentialRampToValueAtTime(50, t + 0.03);
+
+        oscGain.gain.setValueAtTime(volume * 1.1, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.3);
+    }
+
+    /**
+     * PUNCHY SNARE (Hip Hop)
+     */
+    playPunchySnare(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc1.type = 'triangle';
+        osc2.type = 'triangle';
+        osc1.frequency.value = 200;
+        osc2.frequency.value = 350;
+
+        oscGain.gain.setValueAtTime(0.8 * volume, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+        osc1.connect(oscGain);
+        osc2.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        const noise = this.createNoise(t, 0.15, 0.4 * volume);
+        noise.gain.connect(this.masterGain);
+
+        osc1.start(t);
+        osc1.stop(t + 0.15);
+        osc2.start(t);
+        osc2.stop(t + 0.15);
+    }
+
+    /**
+     * RIMSHOT
+     */
+    playRimshot(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'square';
+        osc.frequency.value = 400;
+
+        oscGain.gain.setValueAtTime(0.5 * volume, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.05);
+    }
+
+    /**
+     * REESE BASS (DnB)
+     */
+    playReeseBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Two detuned oscillators for reese effect
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc1.type = 'sawtooth';
+        osc2.type = 'sawtooth';
+        osc1.frequency.value = 55; // A1
+        osc2.frequency.value = 58; // Slightly detuned
+
+        oscGain.gain.setValueAtTime(volume * 0.6, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+        osc1.connect(oscGain);
+        osc2.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc1.start(t);
+        osc1.stop(t + 0.3);
+        osc2.start(t);
+        osc2.stop(t + 0.3);
+    }
+
+    /**
+     * ACID BASS (Techno)
+     */
+    playAcidBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.value = 65;
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, t);
+        filter.frequency.exponentialRampToValueAtTime(200, t + 0.2);
+        filter.Q.value = 10;
+
+        oscGain.gain.setValueAtTime(volume * 0.7, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+        osc.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.3);
+    }
+
+    /**
+     * SUB BASS
+     */
+    playSubBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = 55; // A1
+
+        oscGain.gain.setValueAtTime(volume * 0.8, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.5);
+    }
+
+    /**
+     * STAB SYNTH
+     */
+    playStab(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.value = 523; // C5
+
+        oscGain.gain.setValueAtTime(volume * 0.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.2);
+    }
+
+    /**
+     * PLUCK SYNTH
+     */
+    playPluck(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'triangle';
+        osc.frequency.value = 330; // E4
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, t);
+        filter.frequency.exponentialRampToValueAtTime(200, t + 0.1);
+
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+        osc.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.15);
+    }
+
+    /**
+     * COWBELL
+     */
+    playCowbell(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc1.frequency.value = 540;
+        osc2.frequency.value = 800;
+
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+        osc1.connect(oscGain);
+        osc2.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc1.start(t);
+        osc1.stop(t + 0.15);
+        osc2.start(t);
+        osc2.stop(t + 0.15);
+    }
+
+    /**
+     * CRASH CYMBAL
+     */
+    playCrash(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 1.5, 0.4 * volume);
+
+        const highpass = ctx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 8000;
+
+        noise.gain.connect(highpass);
+        highpass.connect(this.masterGain);
+    }
+
+    /**
+     * Play instrument by name
+     */
+    playInstrumentByName(instrumentName, time = 0, volume = 1) {
+        switch(instrumentName) {
             case 'kick':
                 this.playKick(time, volume);
                 break;
+            case '808-kick':
+                this.play808Kick(time, volume);
+                break;
+            case 'hard-kick':
+                this.playHardKick(time, volume);
+                break;
             case 'snare':
                 this.playSnare(time, volume);
+                break;
+            case 'punchy-snare':
+                this.playPunchySnare(time, volume);
+                break;
+            case 'rimshot':
+                this.playRimshot(time, volume);
                 break;
             case 'hihat':
                 this.playHiHat(time, volume);
@@ -295,12 +587,65 @@ class AudioEngine {
             case 'bass':
                 this.playBass(time, volume);
                 break;
+            case 'reese-bass':
+                this.playReeseBass(time, volume);
+                break;
+            case 'acid-bass':
+                this.playAcidBass(time, volume);
+                break;
+            case 'sub-bass':
+                this.playSubBass(time, volume);
+                break;
             case 'perc':
                 this.playPerc(time, volume);
                 break;
+            case 'stab':
+                this.playStab(time, volume);
+                break;
+            case 'pluck':
+                this.playPluck(time, volume);
+                break;
+            case 'cowbell':
+                this.playCowbell(time, volume);
+                break;
+            case 'crash':
+                this.playCrash(time, volume);
+                break;
         }
+    }
+
+    /**
+     * Play instrument by index (backwards compatibility)
+     */
+    playInstrument(instrumentIndex, time = 0, volume = 1) {
+        const instruments = ['kick', 'snare', 'hihat', 'clap', 'tom', 'openhat', 'bass', 'perc'];
+        const instrument = instruments[instrumentIndex];
+        this.playInstrumentByName(instrument, time, volume);
     }
 }
 
 // Global instance
 const audioEngine = new AudioEngine();
+
+// Available instruments list
+const AVAILABLE_INSTRUMENTS = [
+    { name: 'kick', displayName: 'Kick' },
+    { name: '808-kick', displayName: '808 Kick' },
+    { name: 'hard-kick', displayName: 'Hard Kick' },
+    { name: 'snare', displayName: 'Snare' },
+    { name: 'punchy-snare', displayName: 'Punchy Snare' },
+    { name: 'rimshot', displayName: 'Rimshot' },
+    { name: 'hihat', displayName: 'Hi-Hat' },
+    { name: 'openhat', displayName: 'Open HH' },
+    { name: 'clap', displayName: 'Clap' },
+    { name: 'tom', displayName: 'Tom' },
+    { name: 'bass', displayName: 'Bass' },
+    { name: 'sub-bass', displayName: 'Sub Bass' },
+    { name: 'reese-bass', displayName: 'Reese Bass' },
+    { name: 'acid-bass', displayName: 'Acid Bass' },
+    { name: 'perc', displayName: 'Perc' },
+    { name: 'stab', displayName: 'Stab' },
+    { name: 'pluck', displayName: 'Pluck' },
+    { name: 'cowbell', displayName: 'Cowbell' },
+    { name: 'crash', displayName: 'Crash' }
+];

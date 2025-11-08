@@ -50,6 +50,48 @@ header h1 {
     flex: 1;
 }
 
+/* Preset Selector */
+.preset-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.preset-selector label {
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.preset-selector select {
+    padding: 8px 12px;
+    background: #16213e;
+    color: #fff;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 150px;
+}
+
+.preset-selector select:hover {
+    background: #1a2847;
+    border-color: #4CAF50;
+}
+
+.preset-selector select:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+}
+
+.preset-selector select option {
+    background: #16213e;
+    color: #fff;
+}
+
 /* Pattern Selector */
 .pattern-selector {
     display: flex;
@@ -199,6 +241,35 @@ header h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.instrument-select {
+    background: #0f3460;
+    color: #fff;
+    border: 1px solid #16213e;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 100px;
+}
+
+.instrument-select:hover {
+    background: #16213e;
+    border-color: #4CAF50;
+}
+
+.instrument-select:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+}
+
+.instrument-select option {
+    background: #0f3460;
+    color: #fff;
 }
 
 .track-name {
