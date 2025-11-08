@@ -11,6 +11,11 @@ class Sequencer {
         // Pattern data: array van arrays [track][step]
         this.pattern = this.createEmptyPattern();
 
+        // Track controls
+        this.trackVolumes = [0.7, 0.7, 0.7, 0.7]; // Volume per track (0-1)
+        this.trackMuted = [false, false, false, false]; // Mute state per track
+        this.trackSolo = [false, false, false, false]; // Solo state per track
+
         // Playback state
         this.isPlaying = false;
         this.isPaused = false;
@@ -57,6 +62,51 @@ class Sequencer {
      */
     setBPM(bpm) {
         this.bpm = Math.max(60, Math.min(200, bpm));
+    }
+
+    /**
+     * Set volume voor een track (0-100)
+     */
+    setTrackVolume(track, volume) {
+        if (track >= 0 && track < this.tracks) {
+            this.trackVolumes[track] = volume / 100; // Convert to 0-1
+        }
+    }
+
+    /**
+     * Toggle mute voor een track
+     */
+    toggleMute(track) {
+        if (track >= 0 && track < this.tracks) {
+            this.trackMuted[track] = !this.trackMuted[track];
+            return this.trackMuted[track];
+        }
+        return false;
+    }
+
+    /**
+     * Toggle solo voor een track
+     */
+    toggleSolo(track) {
+        if (track >= 0 && track < this.tracks) {
+            this.trackSolo[track] = !this.trackSolo[track];
+            return this.trackSolo[track];
+        }
+        return false;
+    }
+
+    /**
+     * Check of een track gemute is
+     */
+    isTrackMuted(track) {
+        return this.trackMuted[track];
+    }
+
+    /**
+     * Check of een track solo is
+     */
+    isTrackSolo(track) {
+        return this.trackSolo[track];
     }
 
     /**
@@ -151,10 +201,19 @@ class Sequencer {
             }
         }, Math.max(0, uiUpdateDelay));
 
+        // Check of er solo tracks zijn
+        const hasSolo = this.trackSolo.some(solo => solo);
+
         // Trigger alle actieve notes in deze step
         for (let track = 0; track < this.tracks; track++) {
             if (this.pattern[track][step]) {
-                audioEngine.playInstrument(track, time);
+                // Check of track moet spelen (niet muted EN (geen solo OF track is solo))
+                const shouldPlay = !this.trackMuted[track] && (!hasSolo || this.trackSolo[track]);
+
+                if (shouldPlay) {
+                    const volume = this.trackVolumes[track];
+                    audioEngine.playInstrument(track, time, volume);
+                }
             }
         }
     }
@@ -212,7 +271,10 @@ class Sequencer {
     save(name = 'pattern') {
         const data = {
             bpm: this.bpm,
-            pattern: this.pattern
+            pattern: this.pattern,
+            trackVolumes: this.trackVolumes,
+            trackMuted: this.trackMuted,
+            trackSolo: this.trackSolo
         };
         localStorage.setItem(`sequencer_${name}`, JSON.stringify(data));
     }
@@ -227,6 +289,9 @@ class Sequencer {
                 const data = JSON.parse(stored);
                 this.bpm = data.bpm || 120;
                 this.pattern = data.pattern || this.createEmptyPattern();
+                this.trackVolumes = data.trackVolumes || [0.7, 0.7, 0.7, 0.7];
+                this.trackMuted = data.trackMuted || [false, false, false, false];
+                this.trackSolo = data.trackSolo || [false, false, false, false];
                 return true;
             } catch (e) {
                 console.error('Failed to load pattern:', e);

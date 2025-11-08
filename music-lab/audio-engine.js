@@ -41,7 +41,7 @@ class AudioEngine {
      * KICK DRUM
      * Lage frequentie oscillator met pitch envelope
      */
-    playKick(time = 0) {
+    playKick(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
@@ -53,8 +53,8 @@ class AudioEngine {
         osc.frequency.setValueAtTime(150, t);
         osc.frequency.exponentialRampToValueAtTime(40, t + 0.05);
 
-        // Amplitude envelope
-        oscGain.gain.setValueAtTime(1, t);
+        // Amplitude envelope (met volume parameter)
+        oscGain.gain.setValueAtTime(volume, t);
         oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
 
         osc.connect(oscGain);
@@ -68,7 +68,7 @@ class AudioEngine {
      * SNARE DRUM
      * Combinatie van toon + noise
      */
-    playSnare(time = 0) {
+    playSnare(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
@@ -82,7 +82,7 @@ class AudioEngine {
         osc1.frequency.value = 180;
         osc2.frequency.value = 330;
 
-        oscGain.gain.setValueAtTime(0.7, t);
+        oscGain.gain.setValueAtTime(0.7 * volume, t);
         oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
 
         osc1.connect(oscGain);
@@ -90,7 +90,7 @@ class AudioEngine {
         oscGain.connect(this.masterGain);
 
         // Noise component
-        const noise = this.createNoise(t, 0.2, 0.3);
+        const noise = this.createNoise(t, 0.2, 0.3 * volume);
 
         osc1.start(t);
         osc1.stop(t + 0.2);
@@ -102,12 +102,12 @@ class AudioEngine {
      * HI-HAT
      * High frequency noise met korte envelope
      */
-    playHiHat(time = 0) {
+    playHiHat(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
         // Noise voor hi-hat
-        const noise = this.createNoise(t, 0.05, 0.3);
+        const noise = this.createNoise(t, 0.05, 0.3 * volume);
 
         // High-pass filter voor metallic sound
         const highpass = ctx.createBiquadFilter();
@@ -122,7 +122,7 @@ class AudioEngine {
      * CLAP
      * Multiple korte noise bursts
      */
-    playClap(time = 0) {
+    playClap(time = 0, volume = 1) {
         const ctx = this.audioContext;
         const t = time || ctx.currentTime;
 
@@ -130,7 +130,7 @@ class AudioEngine {
         const delays = [0, 0.015, 0.03];
 
         delays.forEach(delay => {
-            const noise = this.createNoise(t + delay, 0.1, 0.5);
+            const noise = this.createNoise(t + delay, 0.1, 0.5 * volume);
 
             // Bandpass filter voor clap karakter
             const bandpass = ctx.createBiquadFilter();
@@ -174,22 +174,22 @@ class AudioEngine {
     /**
      * Play instrument by index
      */
-    playInstrument(instrumentIndex, time = 0) {
+    playInstrument(instrumentIndex, time = 0, volume = 1) {
         const instruments = ['kick', 'snare', 'hihat', 'clap'];
         const instrument = instruments[instrumentIndex];
 
         switch(instrument) {
             case 'kick':
-                this.playKick(time);
+                this.playKick(time, volume);
                 break;
             case 'snare':
-                this.playSnare(time);
+                this.playSnare(time, volume);
                 break;
             case 'hihat':
-                this.playHiHat(time);
+                this.playHiHat(time, volume);
                 break;
             case 'clap':
-                this.playClap(time);
+                this.playClap(time, volume);
                 break;
         }
     }

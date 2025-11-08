@@ -19,6 +19,7 @@ class UI {
         this.createGrid();
         this.createStepIndicators();
         this.setupControls();
+        this.setupTrackControls();
         this.setupKeyboardShortcuts();
 
         // Connect sequencer callback
@@ -169,11 +170,89 @@ class UI {
             bpmSlider.value = sequencer.bpm;
             bpmValue.textContent = sequencer.bpm;
             this.updateGrid();
+            this.updateTrackControlsUI();
         }
 
         // Auto-save op pattern changes
         this.gridContainer.addEventListener('click', () => {
             sequencer.save('autosave');
+        });
+    }
+
+    /**
+     * Setup track controls (volume, mute, solo)
+     */
+    setupTrackControls() {
+        // Volume sliders
+        const volumeSliders = document.querySelectorAll('.volume-slider');
+        volumeSliders.forEach(slider => {
+            const track = parseInt(slider.dataset.track);
+
+            slider.addEventListener('input', (e) => {
+                const volume = parseInt(e.target.value);
+                sequencer.setTrackVolume(track, volume);
+                sequencer.save('autosave');
+            });
+        });
+
+        // Mute buttons
+        const muteButtons = document.querySelectorAll('.btn-mute');
+        muteButtons.forEach(btn => {
+            const track = parseInt(btn.dataset.track);
+
+            btn.addEventListener('click', () => {
+                const isMuted = sequencer.toggleMute(track);
+                btn.classList.toggle('active', isMuted);
+
+                // Update track control visual
+                const trackControl = btn.closest('.track-control');
+                trackControl.classList.toggle('muted', isMuted);
+
+                sequencer.save('autosave');
+            });
+        });
+
+        // Solo buttons
+        const soloButtons = document.querySelectorAll('.btn-solo');
+        soloButtons.forEach(btn => {
+            const track = parseInt(btn.dataset.track);
+
+            btn.addEventListener('click', () => {
+                const isSolo = sequencer.toggleSolo(track);
+                btn.classList.toggle('active', isSolo);
+                sequencer.save('autosave');
+            });
+        });
+    }
+
+    /**
+     * Update track controls UI from sequencer state
+     */
+    updateTrackControlsUI() {
+        // Update volume sliders
+        const volumeSliders = document.querySelectorAll('.volume-slider');
+        volumeSliders.forEach(slider => {
+            const track = parseInt(slider.dataset.track);
+            slider.value = Math.round(sequencer.trackVolumes[track] * 100);
+        });
+
+        // Update mute buttons
+        const muteButtons = document.querySelectorAll('.btn-mute');
+        muteButtons.forEach(btn => {
+            const track = parseInt(btn.dataset.track);
+            const isMuted = sequencer.isTrackMuted(track);
+            btn.classList.toggle('active', isMuted);
+
+            const trackControl = btn.closest('.track-control');
+            trackControl.classList.toggle('muted', isMuted);
+        });
+
+        // Update solo buttons
+        const soloButtons = document.querySelectorAll('.btn-solo');
+        soloButtons.forEach(btn => {
+            const track = parseInt(btn.dataset.track);
+            const isSolo = sequencer.isTrackSolo(track);
+            btn.classList.toggle('active', isSolo);
         });
     }
 

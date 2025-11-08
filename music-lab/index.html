@@ -24,11 +24,47 @@
         </div>
 
         <div class="sequencer">
-            <div class="track-labels">
-                <div class="track-label">Kick</div>
-                <div class="track-label">Snare</div>
-                <div class="track-label">Hi-Hat</div>
-                <div class="track-label">Clap</div>
+            <div class="track-controls">
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Kick</span>
+                        <div class="track-buttons">
+                            <button class="btn-mute" data-track="0" title="Mute">M</button>
+                            <button class="btn-solo" data-track="0" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="0" min="0" max="100" value="70" title="Volume">
+                </div>
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Snare</span>
+                        <div class="track-buttons">
+                            <button class="btn-mute" data-track="1" title="Mute">M</button>
+                            <button class="btn-solo" data-track="1" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="1" min="0" max="100" value="70" title="Volume">
+                </div>
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Hi-Hat</span>
+                        <div class="track-buttons">
+                            <button class="btn-mute" data-track="2" title="Mute">M</button>
+                            <button class="btn-solo" data-track="2" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="2" min="0" max="100" value="70" title="Volume">
+                </div>
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Clap</span>
+                        <div class="track-buttons">
+                            <button class="btn-mute" data-track="3" title="Mute">M</button>
+                            <button class="btn-solo" data-track="3" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="3" min="0" max="100" value="70" title="Volume">
+                </div>
             </div>
 
             <div class="grid-container" id="sequencerGrid">
