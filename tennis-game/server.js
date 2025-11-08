@@ -72,6 +72,12 @@ io.on('connection', (socket) => {
 
   // Handle controller connection
   socket.on('joinGame', () => {
+    // Check if we need to disable AI BEFORE adding new player
+    // This prevents the new player's paddle from being removed instead of AI's
+    if (gameState.players.size >= 1 && gameState.aiEnabled) {
+      disableAI();
+    }
+
     // Determine team (balance teams)
     const leftCount = Array.from(gameState.players.values()).filter(p => p.team === 'left').length;
     const rightCount = Array.from(gameState.players.values()).filter(p => p.team === 'right').length;
