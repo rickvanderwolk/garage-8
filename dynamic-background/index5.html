@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Background - Heat Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Grid voor heat map - lage resolutie = sneller
+        const gridSize = 50; // 50x50 grid
+        const cellWidth = window.innerWidth / gridSize;
+        const cellHeight = window.innerHeight / gridSize;
+
+        // Heat grid - houdt bij hoeveel "heat" elke cel heeft
+        let heatGrid = Array(gridSize).fill(0).map(() => Array(gridSize).fill(0));
+
+        const maxAge = 60000; // 60 seconden voor heat map
+        let heatSpots = []; // Lijst van alle heat spots met timestamp
+
+        // Track muis elke 100ms (10x per seconde, laag CPU)
+        setInterval(() => {
+            const mouseX = event?.clientX;
+            const mouseY = event?.clientY;
+
+            if (mouseX !== undefined && mouseY !== undefined) {
+                // Bepaal grid cel
+                const gridX = Math.floor(mouseX / cellWidth);
+                const gridY = Math.floor(mouseY / cellHeight);
+
+                if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
+                    // Check of er al een spot is op deze positie
+                    const existing = heatSpots.find(s => s.gridX === gridX && s.gridY === gridY);
+
+                    if (existing) {
+                        existing.count++;
+                        existing.lastSeen = Date.now();
+                    } else {
+                        heatSpots.push({
+                            gridX,
+                            gridY,
+                            x: mouseX,
+                            y: mouseY,
+                            count: 1,
+                            firstSeen: Date.now(),
+                            lastSeen: Date.now()
+                        });
+                    }
+                }
+            }
+        }, 100);
+
+        // Render met requestAnimationFrame voor smooth updates
+        function animate() {
+            const now = Date.now();
+
+            // Verwijder oude spots (ouder dan 60 sec) - niet elke frame, soms
+            if (Math.random() < 0.01) { // ~1% van de frames
+                heatSpots = heatSpots.filter(spot => (now - spot.lastSeen) < maxAge);
+            }
+
+            // Render heat map elke frame
+            renderHeatMap();
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        function getColorFromCount(count, age) {
+            // Age in seconden
+            const ageSeconds = age / 1000;
+
+            // Kleur gebaseerd op hoe vaak bezocht (VEEL sneller!)
+            if (count < 2) {
+                return `hsl(240, 70%, 60%)`; // Blauw - weinig bezocht
+            } else if (count < 5) {
+                return `hsl(180, 75%, 55%)`; // Cyaan - beetje bezocht
+            } else if (count < 10) {
+                return `hsl(120, 80%, 50%)`; // Groen - redelijk bezocht
+            } else if (count < 15) {
+                return `hsl(60, 85%, 55%)`; // Geel - veel bezocht
+            } else if (count < 20) {
+                return `hsl(30, 90%, 55%)`; // Oranje - heel veel bezocht
+            } else {
+                return `hsl(0, 95%, 50%)`; // Rood - super veel bezocht
+            }
+        }
+
+        function renderHeatMap() {
+            const now = Date.now();
+            let gradients = [];
+
+            // Sorteer spots - meest recente eerst (die komen bovenop in CSS)
+            const sortedSpots = [...heatSpots].sort((a, b) => b.lastSeen - a.lastSeen);
+
+            sortedSpots.forEach(spot => {
+                const age = now - spot.lastSeen;
+                const opacity = 1 - (age / maxAge); // Fade out over tijd
+
+                const xPercent = (spot.x / window.innerWidth) * 100;
+                const yPercent = (spot.y / window.innerHeight) * 100;
+
+                const color = getColorFromCount(spot.count, age);
+                const size = 5 + Math.min(spot.count * 0.5, 30); // Groter bij meer visits
+
+                gradients.push(
+                    `radial-gradient(circle at ${xPercent}% ${yPercent}%, ${color} 0%, transparent ${size}%)`
+                );
+            });
+
+            gradients.push('#1a1a2e'); // Donkere achtergrond
+
+            document.body.style.background = gradients.join(', ');
+            document.body.style.filter = 'blur(40px)';
+        }
+
+        // Track muis globaal
+        let event = null;
+        document.addEventListener('mousemove', (e) => {
+            event = e;
+        });
+    </script>
+</body>
+</html>
