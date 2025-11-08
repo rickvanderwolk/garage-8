@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Lab</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 Music Lab</h1>
+        </header>
+
+        <div class="controls">
+            <button id="playBtn" class="btn btn-play">▶ Play</button>
+            <button id="pauseBtn" class="btn btn-pause" disabled>⏸ Pause</button>
+            <button id="stopBtn" class="btn btn-stop" disabled>⏹ Stop</button>
+
+            <div class="bpm-control">
+                <label for="bpmSlider">BPM: <span id="bpmValue">120</span></label>
+                <input type="range" id="bpmSlider" min="60" max="200" value="120">
+            </div>
+        </div>
+
+        <div class="sequencer">
+            <div class="track-labels">
+                <div class="track-label">Kick</div>
+                <div class="track-label">Snare</div>
+                <div class="track-label">Hi-Hat</div>
+                <div class="track-label">Clap</div>
+            </div>
+
+            <div class="grid-container" id="sequencerGrid">
+                <!-- Grid wordt gegenereerd door JavaScript -->
+            </div>
+        </div>
+
+        <div class="step-indicators" id="stepIndicators">
+            <!-- Step indicators worden gegenereerd door JavaScript -->
+        </div>
+    </div>
+
+    <script src="audio-engine.js"></script>
+    <script src="sequencer.js"></script>
+    <script src="ui.js"></script>
+</body>
+</html>
