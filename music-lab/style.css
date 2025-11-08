@@ -38,20 +38,32 @@ header h1 {
     font-size: 2em;
 }
 
+/* Top Controls Bar */
+.top-controls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.spacer {
+    flex: 1;
+}
+
 /* Pattern Selector */
 .pattern-selector {
     display: flex;
-    gap: 8px;
+    gap: 6px;
 }
 
 .pattern-btn {
-    width: 45px;
-    height: 45px;
+    width: 40px;
+    height: 40px;
     border: 2px solid #0f3460;
     border-radius: 8px;
     background: #16213e;
     color: #888;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
@@ -70,23 +82,19 @@ header h1 {
     box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
 }
 
-/* Controls */
-.controls {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 30px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
 .btn {
-    padding: 12px 24px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
     border: none;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn:disabled {
@@ -128,16 +136,16 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-left: auto;
     color: #fff;
 }
 
 .bpm-control label {
     font-weight: 600;
+    font-size: 14px;
 }
 
 #bpmSlider {
-    width: 150px;
+    width: 120px;
 }
 
 #bpmValue {
@@ -317,7 +325,7 @@ header h1 {
     display: grid;
     grid-template-columns: repeat(16, 1fr);
     gap: 8px;
-    margin-left: calc(180px + 10px); /* Offset voor track controls */
+    margin-left: calc(180px + 10px);
     margin-top: 5px;
 }
 

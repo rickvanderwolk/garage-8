@@ -349,8 +349,30 @@ class UI {
                 this.updateStepIndicator(0);
             }
 
-            // C = clear
+            // A, B, C, D = switch patterns
+            if (e.code === 'KeyA' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.switchPattern(0);
+                sequencer.save('autosave');
+            }
+            if (e.code === 'KeyB' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.switchPattern(1);
+                sequencer.save('autosave');
+            }
             if (e.code === 'KeyC' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.switchPattern(2);
+                sequencer.save('autosave');
+            }
+            if (e.code === 'KeyD' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.switchPattern(3);
+                sequencer.save('autosave');
+            }
+
+            // X = clear
+            if (e.code === 'KeyX' && !e.ctrlKey && !e.metaKey) {
                 if (confirm('Clear hele pattern?')) {
                     sequencer.clear();
                     this.updateGrid();
@@ -358,8 +380,8 @@ class UI {
                 }
             }
 
-            // D = load demo
-            if (e.code === 'KeyD') {
+            // L = load demo
+            if (e.code === 'KeyL' && !e.ctrlKey && !e.metaKey) {
                 sequencer.loadDemoPattern();
                 this.updateGrid();
                 sequencer.save('autosave');
@@ -377,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Keyboard shortcuts:');
     console.log('  Space - Play/Pause');
     console.log('  Escape - Stop');
-    console.log('  D - Load demo pattern');
-    console.log('  C - Clear pattern');
+    console.log('  A/B/C/D - Switch patterns');
+    console.log('  L - Load demo pattern');
+    console.log('  X - Clear pattern');
 });
