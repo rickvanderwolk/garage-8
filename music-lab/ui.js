@@ -330,26 +330,29 @@ class UI {
         // Preset selector
         presetSelect.addEventListener('change', (e) => {
             const presetId = e.target.value;
-            if (presetId && loadPreset(presetId)) {
-                // Update BPM display
-                bpmSlider.value = sequencer.bpm;
-                bpmValue.textContent = sequencer.bpm;
+            if (presetId) {
+                if (confirm('Load preset? This will replace your current patterns.')) {
+                    if (loadPreset(presetId)) {
+                        // Update BPM display
+                        bpmSlider.value = sequencer.bpm;
+                        bpmValue.textContent = sequencer.bpm;
 
-                // Update instrument selectors
-                for (let i = 0; i < sequencer.tracks; i++) {
-                    const instrumentName = sequencer.getTrackInstrument(i);
-                    this.updateInstrumentSelector(i, instrumentName);
+                        // Update instrument selectors
+                        for (let i = 0; i < sequencer.tracks; i++) {
+                            const instrumentName = sequencer.getTrackInstrument(i);
+                            this.updateInstrumentSelector(i, instrumentName);
+                        }
+
+                        // Update grid
+                        this.updateGrid();
+
+                        // Switch to pattern A
+                        sequencer.switchPattern(0);
+
+                        // Save after loading preset
+                        sequencer.save('autosave');
+                    }
                 }
-
-                // Update grid
-                this.updateGrid();
-
-                // Switch to pattern A
-                sequencer.switchPattern(0);
-
-                // Save after loading preset
-                sequencer.save('autosave');
-
                 // Reset selector
                 setTimeout(() => {
                     presetSelect.value = '';
@@ -447,34 +450,38 @@ class UI {
         if (mobilePresetSelect) {
             mobilePresetSelect.addEventListener('change', (e) => {
                 const presetId = e.target.value;
-                if (presetId && loadPreset(presetId)) {
-                    const bpmSlider = document.getElementById('bpmSlider');
-                    const bpmValue = document.getElementById('bpmValue');
-                    const mobileBpmSlider = document.getElementById('mobileBpmSlider');
-                    const mobileBpmValue = document.getElementById('mobileBpmValue');
+                if (presetId) {
+                    if (confirm('Load preset? This will replace your current patterns.')) {
+                        if (loadPreset(presetId)) {
+                            const bpmSlider = document.getElementById('bpmSlider');
+                            const bpmValue = document.getElementById('bpmValue');
+                            const mobileBpmSlider = document.getElementById('mobileBpmSlider');
+                            const mobileBpmValue = document.getElementById('mobileBpmValue');
 
-                    if (bpmSlider) bpmSlider.value = sequencer.bpm;
-                    if (bpmValue) bpmValue.textContent = sequencer.bpm;
-                    if (mobileBpmSlider) mobileBpmSlider.value = sequencer.bpm;
-                    if (mobileBpmValue) mobileBpmValue.textContent = sequencer.bpm;
+                            if (bpmSlider) bpmSlider.value = sequencer.bpm;
+                            if (bpmValue) bpmValue.textContent = sequencer.bpm;
+                            if (mobileBpmSlider) mobileBpmSlider.value = sequencer.bpm;
+                            if (mobileBpmValue) mobileBpmValue.textContent = sequencer.bpm;
 
-                    for (let i = 0; i < sequencer.tracks; i++) {
-                        const instrumentName = sequencer.getTrackInstrument(i);
-                        this.updateInstrumentSelector(i, instrumentName);
+                            for (let i = 0; i < sequencer.tracks; i++) {
+                                const instrumentName = sequencer.getTrackInstrument(i);
+                                this.updateInstrumentSelector(i, instrumentName);
+                            }
+
+                            this.updateGrid();
+                            sequencer.switchPattern(0);
+                            sequencer.save('autosave');
+
+                            // Close menu
+                            if (mobileMenuOverlay) {
+                                mobileMenuOverlay.classList.remove('active');
+                            }
+                        }
                     }
-
-                    this.updateGrid();
-                    sequencer.switchPattern(0);
-                    sequencer.save('autosave');
-
+                    // Reset selector
                     setTimeout(() => {
                         mobilePresetSelect.value = '';
                     }, 100);
-
-                    // Close menu
-                    if (mobileMenuOverlay) {
-                        mobileMenuOverlay.classList.remove('active');
-                    }
                 }
             });
         }
