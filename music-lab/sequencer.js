@@ -371,6 +371,112 @@ class Sequencer {
     }
 
     /**
+     * Euclidean rhythm algorithm - spreads n hits evenly across k steps
+     */
+    generateEuclideanRhythm(hits, steps) {
+        const pattern = new Array(steps).fill(false);
+        const bucket = new Array(steps).fill(0);
+
+        for (let i = 0; i < steps; i++) {
+            bucket[i] = Math.floor((hits * i) / steps);
+        }
+
+        for (let i = 0; i < steps; i++) {
+            if (i === 0 || bucket[i] !== bucket[i - 1]) {
+                pattern[i] = true;
+            }
+        }
+
+        return pattern;
+    }
+
+    /**
+     * Fill track with pattern (supports various pattern types)
+     */
+    fillTrack(track, patternType) {
+        if (track < 0 || track >= this.tracks) return;
+
+        const pattern = this.getPattern();
+        let fillPattern = new Array(this.steps).fill(false);
+
+        // Parse pattern type
+        if (patternType.startsWith('every-')) {
+            // Basic: every N steps
+            const stepInterval = parseInt(patternType.split('-')[1]);
+            for (let step = 0; step < this.steps; step++) {
+                fillPattern[step] = (step % stepInterval === 0);
+            }
+        } else if (patternType.startsWith('kick-')) {
+            // Kick patterns
+            const kickType = patternType.split('-')[1];
+            switch (kickType) {
+                case '4floor':
+                    fillPattern = [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0];
+                    break;
+                case '2step':
+                    fillPattern = [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0];
+                    break;
+                case 'broken':
+                    fillPattern = [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,1,0];
+                    break;
+                case 'offbeat':
+                    fillPattern = [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0];
+                    break;
+            }
+        } else if (patternType.startsWith('hat-')) {
+            // Hi-hat patterns
+            const hatType = patternType.split('-')[1];
+            switch (hatType) {
+                case '8ths':
+                    fillPattern = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];
+                    break;
+                case '16ths':
+                    fillPattern = [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1];
+                    break;
+                case 'shuffle':
+                    fillPattern = [1,0,1,0, 1,1,1,0, 1,0,1,0, 1,1,1,0];
+                    break;
+                case 'trap':
+                    fillPattern = [1,0,1,0, 1,1,1,1, 1,0,1,0, 1,1,1,1];
+                    break;
+            }
+        } else if (patternType.startsWith('snare-')) {
+            // Snare patterns
+            const snareType = patternType.split('-')[1];
+            switch (snareType) {
+                case 'backbeat':
+                    fillPattern = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+                    break;
+                case 'halftime':
+                    fillPattern = [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0];
+                    break;
+                case 'clap':
+                    fillPattern = [0,0,0,0, 1,0,0,1, 0,0,0,0, 1,0,0,0];
+                    break;
+            }
+        } else if (patternType.startsWith('euclidean-')) {
+            // Euclidean rhythms
+            const hits = parseInt(patternType.split('-')[1]);
+            fillPattern = this.generateEuclideanRhythm(hits, this.steps);
+        } else if (patternType.startsWith('poly-')) {
+            // Polyrhythms
+            const polyType = patternType.split('-')[1];
+            if (polyType === '3over4') {
+                // 3 hits evenly over 16 steps (triplet feel)
+                fillPattern = [1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0,0];
+            } else if (polyType === '5over4') {
+                // 5 hits evenly over 16 steps
+                fillPattern = this.generateEuclideanRhythm(5, this.steps);
+            }
+        }
+
+        // Apply the fill pattern
+        for (let step = 0; step < this.steps; step++) {
+            pattern[track][step] = fillPattern[step] === 1 || fillPattern[step] === true;
+        }
+    }
+
+    /**
      * Clear all patterns
      */
     clearAll() {

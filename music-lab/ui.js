@@ -628,6 +628,24 @@ class UI {
             });
         });
 
+        // Fill dropdowns
+        const fillSelects = document.querySelectorAll('.fill-select');
+        fillSelects.forEach(select => {
+            const track = parseInt(select.dataset.track);
+
+            select.addEventListener('change', (e) => {
+                const patternType = e.target.value;
+                if (patternType) {
+                    this.selectChannel(track); // Select channel on fill
+                    sequencer.fillTrack(track, patternType);
+                    this.updateGrid();
+                    sequencer.save('autosave');
+                    // Reset dropdown to placeholder
+                    e.target.value = '';
+                }
+            });
+        });
+
         // Mute buttons
         const muteButtons = document.querySelectorAll('.btn-mute');
         muteButtons.forEach(btn => {
