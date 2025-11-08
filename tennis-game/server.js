@@ -31,10 +31,10 @@ const gameState = {
   ball: {
     x: 400,
     y: 300,
-    dx: 4,
-    dy: 3,
+    dx: 8,
+    dy: 6,
     radius: 8,
-    speed: 5
+    speed: 10
   },
   players: new Map(), // id -> { team, position, paddleIndex }
   paddles: {
@@ -54,7 +54,7 @@ const gameState = {
   lastScoreTime: 0,
   aiEnabled: false,
   aiTeam: null,
-  aiDifficulty: 0.4 // 0 = easy, 1 = impossible
+  aiDifficulty: 0.3 // 0 = easy, 1 = impossible
 };
 
 const CANVAS_WIDTH = 800;
@@ -289,9 +289,18 @@ function disableAI() {
   console.log('AI disabled');
 }
 
+// AI update tracking (throttle AI calculations)
+let lastAIUpdate = 0;
+const AI_UPDATE_INTERVAL = 50; // Update AI every 50ms (20 Hz)
+
 // Update AI paddle position
 function updateAI() {
   if (!gameState.aiEnabled || !gameState.gameStarted) return;
+
+  // Throttle AI updates to 20 Hz for performance
+  const now = Date.now();
+  if (now - lastAIUpdate < AI_UPDATE_INTERVAL) return;
+  lastAIUpdate = now;
 
   const team = gameState.aiTeam;
   const isLeft = team === 'left';
@@ -317,7 +326,7 @@ function updateAI() {
 
   // Smooth movement (not instant)
   const currentY = isLeft ? gameState.paddles.left[paddleIndex] : gameState.paddles.right[paddleIndex];
-  const speed = 8 * gameState.aiDifficulty; // Difficulty affects reaction speed
+  const speed = 16 * gameState.aiDifficulty; // Doubled speed to compensate for 30 FPS
   const diff = targetY - currentY;
   const newY = currentY + Math.sign(diff) * Math.min(Math.abs(diff), speed);
 
@@ -457,6 +466,9 @@ function endGame() {
 
 // Update game state to all clients
 function broadcastGameState() {
+  // Only broadcast if there are connected clients
+  if (gameState.players.size === 0 && !gameState.aiEnabled) return;
+
   io.emit('gameState', getClientGameState());
 }
 
@@ -474,11 +486,11 @@ function getLocalIP() {
   return 'localhost';
 }
 
-// Start game loop (60 FPS)
-setInterval(gameLoop, 1000 / 60);
+// Start game loop (30 FPS - reduced for better performance)
+setInterval(gameLoop, 1000 / 30);
 
-// Broadcast game state (30 FPS to reduce network traffic)
-setInterval(broadcastGameState, 1000 / 30);
+// Broadcast game state (20 FPS to reduce network traffic)
+setInterval(broadcastGameState, 1000 / 20);
 
 server.listen(PORT, () => {
   const localIP = getLocalIP();

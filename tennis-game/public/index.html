@@ -75,6 +75,8 @@
 
     // Game state
     let gameState = null;
+    let lastGameState = null;
+    let animationFrameId = null;
 
     // Display controller URL
     const controllerUrl = window.location.origin + '/controller';
@@ -82,11 +84,22 @@
 
     // Socket event listeners
     socket.on('gameState', (state) => {
+      lastGameState = gameState;
       gameState = state;
       updateUI();
+
       if (state.gameStarted && !state.gameOver) {
         showScreen('game');
-        render();
+        // Only render if state changed or not rendering yet
+        if (!animationFrameId) {
+          render();
+        }
+      } else {
+        // Stop rendering when game not active
+        if (animationFrameId) {
+          clearTimeout(animationFrameId);
+          animationFrameId = null;
+        }
       }
     });
 
@@ -124,6 +137,12 @@
     });
 
     socket.on('gameOver', (data) => {
+      // Stop rendering
+      if (animationFrameId) {
+        clearTimeout(animationFrameId);
+        animationFrameId = null;
+      }
+
       showScreen('game-over');
 
       if (data.winner === 'draw') {
@@ -217,8 +236,11 @@
       ctx.fill();
 
       // Continue rendering if game is active
+      // Sync with server update rate (20 FPS) instead of display refresh rate
       if (gameState.gameStarted && !gameState.gameOver) {
-        requestAnimationFrame(render);
+        animationFrameId = setTimeout(render, 1000 / 20); // Match server broadcast rate
+      } else {
+        animationFrameId = null;
       }
     }
 
