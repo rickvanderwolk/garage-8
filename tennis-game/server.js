@@ -54,7 +54,7 @@ const gameState = {
   lastScoreTime: 0,
   aiEnabled: false,
   aiTeam: null,
-  aiDifficulty: 0.7 // 0 = easy, 1 = impossible
+  aiDifficulty: 0.4 // 0 = easy, 1 = impossible
 };
 
 const CANVAS_WIDTH = 800;

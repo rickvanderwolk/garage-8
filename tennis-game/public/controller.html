@@ -114,36 +114,53 @@
     #calibration-zone {
       width: 100%;
       max-width: 350px;
-      margin: 20px 0;
+      margin: 30px 0;
     }
 
-    .tilt-display {
+    .paddle-display {
       background: #111;
       border: 2px solid #333;
       border-radius: 10px;
-      padding: 20px 15px;
-      margin-bottom: 15px;
-      position: relative;
-      height: 80px;
+      padding: 20px;
     }
 
-    #tilt-indicator {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 15px;
-      height: 50px;
-      background: #4CAF50;
+    .paddle-bar {
+      height: 40px;
+      width: 100%;
+      background: #222;
+      border: 2px solid #444;
       border-radius: 8px;
-      transition: left 0.1s ease-out;
-      box-shadow: 0 0 15px #4CAF50;
+      position: relative;
+      margin-bottom: 10px;
     }
 
-    .tilt-labels {
+    #paddle-indicator {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 30px;
+      background: #4CAF50;
+      border-radius: 5px;
+      transition: left 0.05s ease-out;
+      box-shadow: 0 0 15px currentColor;
+      border: 2px solid #fff;
+    }
+
+    #paddle-indicator.team-left {
+      background: #ff4444;
+      box-shadow: 0 0 15px #ff4444;
+    }
+
+    #paddle-indicator.team-right {
+      background: #4444ff;
+      box-shadow: 0 0 15px #4444ff;
+    }
+
+    .paddle-labels {
       display: flex;
       justify-content: space-between;
-      margin-top: 8px;
       font-size: 11px;
       color: #666;
     }
@@ -285,20 +302,14 @@
       <p id="paddle-info">Paddle #1</p>
 
       <div id="calibration-zone">
-        <div class="tilt-display">
-          <div id="tilt-indicator"></div>
-          <div class="tilt-labels">
+        <div class="paddle-display">
+          <div class="paddle-bar">
+            <div id="paddle-indicator"></div>
+          </div>
+          <div class="paddle-labels">
             <span>LEFT</span>
             <span>CENTER</span>
             <span>RIGHT</span>
-          </div>
-        </div>
-        <div class="controls">
-          <button id="calibrate-button" class="control-button">CALIBRATE</button>
-          <div class="sensitivity-control">
-            <label>Sens.</label>
-            <input type="range" id="sensitivity" min="1" max="5" value="3" step="0.5">
-            <span id="sensitivity-value">3</span>
           </div>
         </div>
       </div>
@@ -309,8 +320,9 @@
 
       <div class="instructions">
         <h3>How to play:</h3>
-        <p>Tilt phone left/right to move</p>
-        <p>Keep phone upright (portrait)</p>
+        <p>Move phone up/down to control paddle</p>
+        <p>Like moving a Wii controller</p>
+        <p>Use CENTER button to reset position</p>
       </div>
     </div>
 
@@ -339,26 +351,25 @@
 
     // UI elements
     const permissionButton = document.getElementById('permission-button');
-    const calibrateButton = document.getElementById('calibrate-button');
     const retryButton = document.getElementById('retry-button');
     const teamIndicator = document.getElementById('team-indicator');
     const paddleInfo = document.getElementById('paddle-info');
     const statusText = document.getElementById('status-text');
-    const tiltIndicator = document.getElementById('tilt-indicator');
-    const sensitivitySlider = document.getElementById('sensitivity');
-    const sensitivityValue = document.getElementById('sensitivity-value');
+    const paddleIndicator = document.getElementById('paddle-indicator');
     const errorMessage = document.getElementById('error-message');
     const debugEl = document.getElementById('debug');
 
     // Controller state
     let team = null;
     let paddleIndex = null;
+    let paddlePosition = 0.5; // Current paddle position (0-1)
     let calibrationOffset = 0;
     let sensitivity = 3;
     let isTracking = false;
     let wakeLock = null;
     let noSleepVideo = null;
     let noSleepAudio = null;
+    let lastMotionTime = Date.now();
 
     // Debug logging
     function debug(msg) {
@@ -496,13 +507,13 @@
     function requestPermission() {
       debug('Requesting permission...');
 
-      if (typeof DeviceOrientationEvent === 'undefined') {
+      if (typeof DeviceMotionEvent === 'undefined') {
         showError('Device does not support motion sensors');
         return;
       }
 
       // Check if permission is needed (iOS 13+)
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
         debug('iOS device - showing permission button');
         showScreen('permission');
 
@@ -513,7 +524,7 @@
         newButton.addEventListener('click', async () => {
           debug('Permission button clicked');
           try {
-            const permission = await DeviceOrientationEvent.requestPermission();
+            const permission = await DeviceMotionEvent.requestPermission();
             debug(`Permission result: ${permission}`);
 
             if (permission === 'granted') {
@@ -539,69 +550,58 @@
     function startTracking() {
       if (isTracking) return;
 
-      debug('Starting motion tracking');
+      debug('Starting gyroscope tracking');
       isTracking = true;
-      window.addEventListener('deviceorientation', handleOrientation);
+      paddlePosition = 0.5; // Start in center
+      window.addEventListener('devicemotion', handleMotion);
 
       // Test if events are firing
       setTimeout(() => {
-        if (!isTracking) {
-          debug('No orientation events received');
+        if (Date.now() - lastMotionTime > 2000) {
+          debug('No motion events received');
         }
       }, 2000);
     }
 
-    // Handle device orientation
-    function handleOrientation(event) {
+    // Handle device motion (gyroscope)
+    function handleMotion(event) {
       if (!team) return;
 
-      // gamma: left/right tilt (-90 to 90)
-      let gamma = event.gamma;
+      const now = Date.now();
+      const deltaTime = (now - lastMotionTime) / 1000; // Convert to seconds
+      lastMotionTime = now;
 
-      if (gamma === null || gamma === undefined) {
-        debug('Gamma is null');
+      // Get rotation rate (degrees per second)
+      const rotationRate = event.rotationRate;
+      if (!rotationRate || rotationRate.beta === null) {
         return;
       }
 
-      debug(`Gamma: ${gamma.toFixed(1)}`);
+      // beta: rotation around X-axis (forward/backward tilt)
+      // Positive beta = tilting phone forward = paddle goes down
+      // Negative beta = tilting phone backward = paddle goes up
+      let beta = rotationRate.beta;
 
-      // Apply calibration
-      gamma -= calibrationOffset;
+      // Apply calibration offset
+      beta -= calibrationOffset;
 
-      // Apply sensitivity
-      gamma *= (sensitivity / 3);
+      // Apply sensitivity (degrees/sec to position change)
+      const moveSpeed = (sensitivity / 3) * 0.01; // Adjust for smooth movement
+      const positionChange = -beta * moveSpeed * deltaTime;
 
-      // Normalize to 0-1 range
-      const maxTilt = 45;
-      let position = (gamma + maxTilt) / (maxTilt * 2);
-      position = Math.max(0, Math.min(1, position));
+      // Update paddle position
+      paddlePosition += positionChange;
+      paddlePosition = Math.max(0, Math.min(1, paddlePosition));
 
-      // Update visual indicator
-      const indicatorPosition = position * 100;
-      tiltIndicator.style.left = `${indicatorPosition}%`;
+      debug(`Beta: ${beta.toFixed(1)}° Pos: ${(paddlePosition * 100).toFixed(0)}%`);
+
+      // Update visual indicator (horizontal bar)
+      const indicatorPosition = paddlePosition * 100;
+      paddleIndicator.style.left = `${indicatorPosition}%`;
 
       // Send to server
-      socket.emit('paddleMove', { position });
+      socket.emit('paddleMove', { position: paddlePosition });
     }
-
-    // Calibrate
-    calibrateButton.addEventListener('click', () => {
-      const handler = (event) => {
-        calibrationOffset = event.gamma || 0;
-        calibrateButton.textContent = 'CALIBRATED ✓';
-        debug(`Calibrated to: ${calibrationOffset.toFixed(1)}`);
-        setTimeout(() => {
-          calibrateButton.textContent = 'CALIBRATE';
-        }, 1500);
-      };
-      window.addEventListener('deviceorientation', handler, { once: true });
-    });
-
-    // Sensitivity control
-    sensitivitySlider.addEventListener('input', (e) => {
-      sensitivity = parseFloat(e.target.value);
-      sensitivityValue.textContent = sensitivity.toFixed(1);
-    });
 
     // Socket events
     socket.on('connect', () => {
@@ -617,6 +617,9 @@
       teamIndicator.textContent = `${team.toUpperCase()} TEAM`;
       teamIndicator.className = `team-badge team-${team}`;
       paddleInfo.textContent = `Paddle #${paddleIndex + 1}`;
+
+      // Set paddle indicator color to team color
+      paddleIndicator.className = `team-${team}`;
 
       requestPermission();
 
