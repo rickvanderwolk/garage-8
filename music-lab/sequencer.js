@@ -334,6 +334,16 @@ class Sequencer {
     }
 
     /**
+     * Clear a specific track in current pattern
+     */
+    clearTrack(track) {
+        if (track >= 0 && track < this.tracks) {
+            const pattern = this.getPattern();
+            pattern[track] = new Array(this.steps).fill(false);
+        }
+    }
+
+    /**
      * Randomize een specifieke track
      */
     randomizeTrack(track) {

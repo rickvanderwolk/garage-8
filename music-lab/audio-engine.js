@@ -627,25 +627,25 @@ class AudioEngine {
 // Global instance
 const audioEngine = new AudioEngine();
 
-// Available instruments list
+// Available instruments list (sorted alphabetically by displayName)
 const AVAILABLE_INSTRUMENTS = [
-    { name: 'kick', displayName: 'Kick' },
     { name: '808-kick', displayName: '808 Kick' },
-    { name: 'hard-kick', displayName: 'Hard Kick' },
-    { name: 'snare', displayName: 'Snare' },
-    { name: 'punchy-snare', displayName: 'Punchy Snare' },
-    { name: 'rimshot', displayName: 'Rimshot' },
-    { name: 'hihat', displayName: 'Hi-Hat' },
-    { name: 'openhat', displayName: 'Open HH' },
-    { name: 'clap', displayName: 'Clap' },
-    { name: 'tom', displayName: 'Tom' },
-    { name: 'bass', displayName: 'Bass' },
-    { name: 'sub-bass', displayName: 'Sub Bass' },
-    { name: 'reese-bass', displayName: 'Reese Bass' },
     { name: 'acid-bass', displayName: 'Acid Bass' },
-    { name: 'perc', displayName: 'Perc' },
-    { name: 'stab', displayName: 'Stab' },
-    { name: 'pluck', displayName: 'Pluck' },
+    { name: 'bass', displayName: 'Bass' },
+    { name: 'clap', displayName: 'Clap' },
     { name: 'cowbell', displayName: 'Cowbell' },
-    { name: 'crash', displayName: 'Crash' }
+    { name: 'crash', displayName: 'Crash' },
+    { name: 'hard-kick', displayName: 'Hard Kick' },
+    { name: 'hihat', displayName: 'Hi-Hat' },
+    { name: 'kick', displayName: 'Kick' },
+    { name: 'openhat', displayName: 'Open HH' },
+    { name: 'perc', displayName: 'Perc' },
+    { name: 'pluck', displayName: 'Pluck' },
+    { name: 'punchy-snare', displayName: 'Punchy Snare' },
+    { name: 'reese-bass', displayName: 'Reese Bass' },
+    { name: 'rimshot', displayName: 'Rimshot' },
+    { name: 'snare', displayName: 'Snare' },
+    { name: 'stab', displayName: 'Stab' },
+    { name: 'sub-bass', displayName: 'Sub Bass' },
+    { name: 'tom', displayName: 'Tom' }
 ];

@@ -303,6 +303,18 @@ class UI {
             });
         });
 
+        // Clear track buttons
+        const clearTrackButtons = document.querySelectorAll('.btn-clear-track');
+        clearTrackButtons.forEach(btn => {
+            const track = parseInt(btn.dataset.track);
+
+            btn.addEventListener('click', () => {
+                sequencer.clearTrack(track);
+                this.updateGrid();
+                sequencer.save('autosave');
+            });
+        });
+
         // Random buttons
         const randomButtons = document.querySelectorAll('.btn-random');
         randomButtons.forEach(btn => {

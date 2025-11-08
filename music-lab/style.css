@@ -241,6 +241,7 @@ header h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
 }
 
 .instrument-select {
@@ -283,6 +284,7 @@ header h1 {
     gap: 4px;
 }
 
+.btn-clear-track,
 .btn-random,
 .btn-mute,
 .btn-solo {
@@ -298,10 +300,20 @@ header h1 {
     color: #888;
 }
 
+.btn-clear-track:hover,
 .btn-random:hover,
 .btn-mute:hover,
 .btn-solo:hover {
     transform: scale(1.1);
+}
+
+.btn-clear-track {
+    background: #9E9E9E;
+    color: white;
+}
+
+.btn-clear-track:hover {
+    background: #757575;
 }
 
 .btn-random {
