@@ -235,6 +235,29 @@ class UI {
             }
         });
 
+        // Export button
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.addEventListener('click', () => {
+            this.exportProject();
+        });
+
+        // Import button
+        const importBtn = document.getElementById('importBtn');
+        const importFile = document.getElementById('importFile');
+
+        importBtn.addEventListener('click', () => {
+            importFile.click();
+        });
+
+        importFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this.importProject(file);
+                // Reset file input
+                importFile.value = '';
+            }
+        });
+
         // BPM slider
         bpmSlider.addEventListener('input', (e) => {
             const bpm = parseInt(e.target.value);
@@ -481,6 +504,99 @@ class UI {
                 stopBtn.disabled = true;
                 break;
         }
+    }
+
+    /**
+     * Export project as JSON
+     */
+    exportProject() {
+        const data = {
+            version: '1.0',
+            created: new Date().toISOString(),
+            bpm: sequencer.bpm,
+            patterns: sequencer.patterns,
+            currentPattern: sequencer.currentPattern,
+            trackInstruments: sequencer.trackInstruments,
+            trackNames: sequencer.trackNames,
+            trackVolumes: sequencer.trackVolumes,
+            trackMuted: sequencer.trackMuted,
+            trackSolo: sequencer.trackSolo
+        };
+
+        // Create JSON blob
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        // Create download link
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `music-lab-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    /**
+     * Import project from JSON file
+     */
+    importProject(file) {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+
+                // Validate data
+                if (!data.version || !data.patterns) {
+                    alert('Invalid project file format');
+                    return;
+                }
+
+                // Load data into sequencer
+                sequencer.bpm = data.bpm || 120;
+                sequencer.patterns = data.patterns;
+                sequencer.currentPattern = data.currentPattern || 0;
+                sequencer.trackInstruments = data.trackInstruments || ['kick', 'snare', 'hihat', 'clap', 'tom', 'openhat', 'bass', 'perc'];
+                sequencer.trackNames = data.trackNames || ['Kick', 'Snare', 'Hi-Hat', 'Clap', 'Tom', 'Open HH', 'Bass', 'Perc'];
+                sequencer.trackVolumes = data.trackVolumes || [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7];
+                sequencer.trackMuted = data.trackMuted || [false, false, false, false, false, false, false, false];
+                sequencer.trackSolo = data.trackSolo || [false, false, false, false, false, false, false, false];
+
+                // Update UI
+                const bpmSlider = document.getElementById('bpmSlider');
+                const bpmValue = document.getElementById('bpmValue');
+                bpmSlider.value = sequencer.bpm;
+                bpmValue.textContent = sequencer.bpm;
+
+                this.updateGrid();
+                this.updateTrackControlsUI();
+
+                // Update instrument selectors
+                for (let i = 0; i < sequencer.tracks; i++) {
+                    const instrumentName = sequencer.getTrackInstrument(i);
+                    this.updateInstrumentSelector(i, instrumentName);
+                }
+
+                // Update pattern button states
+                const patternButtons = document.querySelectorAll('.pattern-btn');
+                patternButtons.forEach(btn => {
+                    const btnIndex = parseInt(btn.dataset.pattern);
+                    btn.classList.toggle('active', btnIndex === sequencer.currentPattern);
+                });
+
+                // Save to autosave
+                sequencer.save('autosave');
+
+                console.log('Project imported successfully');
+            } catch (error) {
+                console.error('Import error:', error);
+                alert('Failed to import project: ' + error.message);
+            }
+        };
+
+        reader.readAsText(file);
     }
 
     /**

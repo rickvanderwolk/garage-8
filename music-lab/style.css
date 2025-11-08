@@ -186,6 +186,30 @@ header h1 {
     transform: translateY(-2px);
 }
 
+.btn-export {
+    background: #2196F3;
+    color: white;
+    width: auto;
+    padding: 0 16px;
+}
+
+.btn-export:hover:not(:disabled) {
+    background: #1976D2;
+    transform: translateY(-2px);
+}
+
+.btn-import {
+    background: #FF9800;
+    color: white;
+    width: auto;
+    padding: 0 16px;
+}
+
+.btn-import:hover:not(:disabled) {
+    background: #F57C00;
+    transform: translateY(-2px);
+}
+
 .bpm-control {
     display: flex;
     align-items: center;

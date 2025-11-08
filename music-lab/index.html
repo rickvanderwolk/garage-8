@@ -45,6 +45,12 @@
 
             <button id="clearBtn" class="btn btn-clear" title="Clear current pattern">Clear</button>
 
+            <div class="spacer"></div>
+
+            <button id="exportBtn" class="btn btn-export" title="Export as JSON">Export</button>
+            <button id="importBtn" class="btn btn-import" title="Import JSON">Import</button>
+            <input type="file" id="importFile" accept=".json" style="display: none;">
+
             <div class="bpm-control">
                 <label for="bpmSlider">BPM: <span id="bpmValue">120</span></label>
                 <input type="range" id="bpmSlider" min="60" max="200" value="120">
