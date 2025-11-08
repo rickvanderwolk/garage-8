@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Background - Device Motion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #0f0f1e;
+            position: relative;
+        }
+
+        #background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            transition: background 0.3s ease;
+        }
+
+        #info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            max-width: 90%;
+        }
+
+        #request-permission {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+            font-family: sans-serif;
+            z-index: 2000;
+        }
+
+        #request-permission button {
+            margin-top: 15px;
+            padding: 12px 24px;
+            background: #5c7cfa;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #request-permission button:hover {
+            background: #4c6ef5;
+        }
+    </style>
+</head>
+<body>
+    <div id="background"></div>
+
+    <div id="request-permission" style="display: none;">
+        <h2>Toestemming nodig</h2>
+        <p>Deze demo heeft toegang nodig tot de bewegingssensoren van je apparaat.</p>
+        <button onclick="requestPermission()">Geef toestemming</button>
+    </div>
+
+    <div id="info">
+        <div>Status: <span id="status">Initialiseren...</span></div>
+        <div>Alpha (Z-as): <span id="alpha">-</span>°</div>
+        <div>Beta (X-as): <span id="beta">-</span>°</div>
+        <div>Gamma (Y-as): <span id="gamma">-</span>°</div>
+        <div>Acceleratie: <span id="accel">-</span></div>
+    </div>
+
+    <script>
+        let hasPermission = false;
+        let alpha = 0, beta = 0, gamma = 0;
+        let accelX = 0, accelY = 0, accelZ = 0;
+        let gradientPosition = { x: 50, y: 50 };
+        let rotation = 0;
+        let colorShift = 0;
+
+        // Check of device motion/orientation beschikbaar is
+        function checkSupport() {
+            if (typeof DeviceOrientationEvent === 'undefined') {
+                document.getElementById('status').textContent = 'Niet ondersteund';
+                return false;
+            }
+
+            // iOS 13+ vereist toestemming
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                document.getElementById('request-permission').style.display = 'block';
+                document.getElementById('status').textContent = 'Wacht op toestemming';
+                return false;
+            }
+
+            return true;
+        }
+
+        // Vraag toestemming (iOS 13+)
+        async function requestPermission() {
+            try {
+                const orientationPermission = await DeviceOrientationEvent.requestPermission();
+
+                if (orientationPermission === 'granted') {
+                    hasPermission = true;
+                    document.getElementById('request-permission').style.display = 'none';
+                    document.getElementById('status').textContent = 'Actief';
+                    startListening();
+                } else {
+                    document.getElementById('status').textContent = 'Toestemming geweigerd';
+                }
+            } catch (error) {
+                console.error('Error requesting permission:', error);
+                document.getElementById('status').textContent = 'Fout: ' + error.message;
+            }
+        }
+
+        // Start luisteren naar sensoren
+        function startListening() {
+            // Device Orientation (gyroscoop)
+            window.addEventListener('deviceorientation', (event) => {
+                alpha = event.alpha || 0;   // Z-as (0-360)
+                beta = event.beta || 0;     // X-as (-180 tot 180)
+                gamma = event.gamma || 0;   // Y-as (-90 tot 90)
+
+                // Update info display
+                document.getElementById('alpha').textContent = alpha.toFixed(1);
+                document.getElementById('beta').textContent = beta.toFixed(1);
+                document.getElementById('gamma').textContent = gamma.toFixed(1);
+            });
+
+            // Device Motion (accelerometer)
+            window.addEventListener('devicemotion', (event) => {
+                if (event.acceleration) {
+                    accelX = event.acceleration.x || 0;
+                    accelY = event.acceleration.y || 0;
+                    accelZ = event.acceleration.z || 0;
+
+                    const total = Math.sqrt(accelX*accelX + accelY*accelY + accelZ*accelZ);
+                    document.getElementById('accel').textContent = total.toFixed(2);
+                }
+            });
+
+            document.getElementById('status').textContent = 'Actief';
+        }
+
+        // Update gradient based op device orientation
+        function updateGradient() {
+            // Gebruik beta en gamma voor gradient positie
+            // Beta: -180 tot 180 (vooruit/achteruit kantelen)
+            // Gamma: -90 tot 90 (links/rechts kantelen)
+
+            // Normaliseer naar 0-100 voor gradient positie
+            const targetX = ((gamma + 90) / 180) * 100; // -90 tot 90 -> 0 tot 100
+            const targetY = ((beta + 180) / 360) * 100; // -180 tot 180 -> 0 tot 100
+
+            // Smooth interpolatie
+            gradientPosition.x += (targetX - gradientPosition.x) * 0.1;
+            gradientPosition.y += (targetY - gradientPosition.y) * 0.1;
+
+            // Gebruik alpha voor rotatie
+            rotation = alpha;
+
+            // Gebruik acceleratie voor kleur shift
+            const accelTotal = Math.sqrt(accelX*accelX + accelY*accelY + accelZ*accelZ);
+            colorShift += accelTotal * 2; // Meer beweging = meer kleur shift
+            colorShift = colorShift % 360; // Houd binnen 0-360
+
+            // Genereer kleuren gebaseerd op orientation en motion
+            const hue1 = (colorShift) % 360;
+            const hue2 = (colorShift + 60) % 360;
+            const hue3 = (colorShift + 120) % 360;
+            const hue4 = (colorShift + 180) % 360;
+
+            // Gebruik beta voor blur intensiteit
+            const blurAmount = 20 + Math.abs(beta) * 0.3; // 20-74px blur
+
+            // Creëer multi-layer radial gradients
+            const gradients = [
+                `radial-gradient(circle at ${gradientPosition.x}% ${gradientPosition.y}%,
+                    hsl(${hue1}, 80%, 60%) 0%,
+                    transparent 50%)`,
+                `radial-gradient(circle at ${100-gradientPosition.x}% ${100-gradientPosition.y}%,
+                    hsl(${hue2}, 75%, 55%) 0%,
+                    transparent 50%)`,
+                `radial-gradient(circle at ${gradientPosition.y}% ${gradientPosition.x}%,
+                    hsl(${hue3}, 70%, 50%) 0%,
+                    transparent 50%)`,
+                `radial-gradient(circle at ${50}% ${50}%,
+                    hsl(${hue4}, 65%, 45%) 0%,
+                    transparent 70%)`,
+                '#0f0f1e'
+            ];
+
+            const bgElement = document.getElementById('background');
+            bgElement.style.background = gradients.join(', ');
+            bgElement.style.filter = `blur(${blurAmount}px)`;
+        }
+
+        // Animation loop
+        function animate() {
+            updateGradient();
+            requestAnimationFrame(animate);
+        }
+
+        // Initialiseer
+        if (checkSupport()) {
+            startListening();
+        }
+
+        animate();
+    </script>
+</body>
+</html>
