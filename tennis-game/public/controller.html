@@ -356,6 +356,9 @@
     let calibrationOffset = 0;
     let sensitivity = 3;
     let isTracking = false;
+    let wakeLock = null;
+    let noSleepVideo = null;
+    let noSleepAudio = null;
 
     // Debug logging
     function debug(msg) {
@@ -375,6 +378,118 @@
     function showError(msg) {
       errorMessage.textContent = msg;
       showScreen('error');
+    }
+
+    // Enable wake lock to prevent screen from sleeping
+    async function enableWakeLock() {
+      try {
+        // Try modern Wake Lock API first (Chrome, Edge, Safari 16.4+)
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          debug('Wake Lock enabled (API)');
+
+          wakeLock.addEventListener('release', () => {
+            debug('Wake Lock released');
+          });
+
+          // Re-acquire wake lock when page becomes visible again
+          document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+              try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                debug('Wake Lock re-acquired');
+              } catch (err) {
+                debug(`Wake Lock re-acquire failed: ${err.message}`);
+              }
+            }
+          });
+        } else {
+          debug('Wake Lock API not supported, using video fallback');
+        }
+
+        // Always use video fallback for iOS (even with Wake Lock API)
+        // iOS is very restrictive and the video method is more reliable
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIOS || !('wakeLock' in navigator)) {
+          debug('Enabling video fallback for iOS');
+          noSleepVideo = document.createElement('video');
+          noSleepVideo.setAttribute('playsinline', '');
+          noSleepVideo.setAttribute('muted', '');
+          noSleepVideo.setAttribute('loop', '');
+          noSleepVideo.style.position = 'fixed';
+          noSleepVideo.style.width = '1px';
+          noSleepVideo.style.height = '1px';
+          noSleepVideo.style.opacity = '0.01';
+          noSleepVideo.style.pointerEvents = 'none';
+          noSleepVideo.style.left = '-9999px';
+
+          // Tiny base64 encoded looping video
+          noSleepVideo.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAu1tZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE0OCByMjc0MyA1YzY1NzA0IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxNiAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTI1IHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAABWGWIhAA3//728P4FNjuY0JcRzeidMx+/Fbi6NDe9zgAAAwAAAwAAAwAAAwAAAwAAAwAAFgn0I7DkqgN3QKAApXH3P/3VdF3h4Pl0HzIl2hCgzFEgAAAAGEGaIWxDf/6nhAAAAwAAAwAAAwAAFzgAAAAIQZ5CeIK/AAADAAAABUGEQAHSAAADAAAAA0GEhAAAAwAA';
+
+          document.body.appendChild(noSleepVideo);
+
+          // Play video - must be in response to user interaction on iOS
+          try {
+            await noSleepVideo.play();
+            debug('Video wake lock playing');
+          } catch (err) {
+            debug(`Video play error: ${err.message}`);
+          }
+
+          // Keep video playing even if it stops
+          noSleepVideo.addEventListener('pause', () => {
+            debug('Video paused, restarting...');
+            noSleepVideo.play().catch(e => debug(`Video restart failed: ${e.message}`));
+          });
+
+          // Also use silent audio for iOS Safari (most reliable method)
+          noSleepAudio = document.createElement('audio');
+          noSleepAudio.setAttribute('loop', '');
+          noSleepAudio.setAttribute('playsinline', '');
+          noSleepAudio.style.display = 'none';
+
+          // Silent audio file (1 second of silence)
+          noSleepAudio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAd4QgeZ0AAAAAAAD/+xDEAAP8A8AAABpAAAACAAADSAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sQxAAAAAA0gAAAAAAAADSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7EMQAAAAAANIAAAAAAAABpAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+
+          document.body.appendChild(noSleepAudio);
+
+          try {
+            await noSleepAudio.play();
+            debug('Audio wake lock playing');
+          } catch (err) {
+            debug(`Audio play error: ${err.message}`);
+          }
+
+          // Keep audio playing
+          noSleepAudio.addEventListener('pause', () => {
+            debug('Audio paused, restarting...');
+            noSleepAudio.play().catch(e => debug(`Audio restart failed: ${e.message}`));
+          });
+        }
+      } catch (err) {
+        debug(`Wake Lock setup failed: ${err.message}`);
+      }
+    }
+
+    // Disable wake lock
+    function disableWakeLock() {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+        debug('Wake Lock disabled');
+      }
+      if (noSleepVideo) {
+        noSleepVideo.pause();
+        noSleepVideo.remove();
+        noSleepVideo = null;
+        debug('Video wake lock disabled');
+      }
+      if (noSleepAudio) {
+        noSleepAudio.pause();
+        noSleepAudio.remove();
+        noSleepAudio = null;
+        debug('Audio wake lock disabled');
+      }
     }
 
     // Request permission and start tracking
@@ -504,6 +619,9 @@
       paddleInfo.textContent = `Paddle #${paddleIndex + 1}`;
 
       requestPermission();
+
+      // Enable wake lock to keep screen on
+      enableWakeLock();
     });
 
     socket.on('gameStarted', () => {
@@ -535,6 +653,7 @@
     });
 
     socket.on('disconnect', () => {
+      disableWakeLock();
       showError('Disconnected from server');
     });
 
