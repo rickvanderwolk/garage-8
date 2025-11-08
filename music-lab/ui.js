@@ -9,6 +9,7 @@ class UI {
         this.gridCells = [];
         this.currentStepCells = [];
         this.selectedChannel = 0; // Default to first channel
+        this.quickFillMode = true; // Default to Quick Fill ON (only Random button)
 
         this.init();
     }
@@ -25,6 +26,7 @@ class UI {
         this.setupPatternButtons();
         this.setupKeyboardShortcuts();
         this.setupMobileInterface();
+        this.updateModeDisplay(); // Initialize mode display
 
         // Connect sequencer callbacks
         sequencer.onStepChange = (step) => this.updateStepIndicator(step);
@@ -289,6 +291,9 @@ class UI {
 
         // Clear button
         clearBtn.addEventListener('click', () => {
+            const menuContent = document.getElementById('menuContent');
+            if (menuContent) menuContent.classList.remove('show');
+
             if (confirm('Clear current pattern?')) {
                 sequencer.clear();
                 this.updateGrid();
@@ -299,6 +304,8 @@ class UI {
         // Export button
         const exportBtn = document.getElementById('exportBtn');
         exportBtn.addEventListener('click', () => {
+            const menuContent = document.getElementById('menuContent');
+            if (menuContent) menuContent.classList.remove('show');
             this.exportProject();
         });
 
@@ -307,6 +314,8 @@ class UI {
         const importFile = document.getElementById('importFile');
 
         importBtn.addEventListener('click', () => {
+            const menuContent = document.getElementById('menuContent');
+            if (menuContent) menuContent.classList.remove('show');
             importFile.click();
         });
 
@@ -326,6 +335,33 @@ class UI {
             bpmValue.textContent = bpm;
             sequencer.save('autosave'); // Auto-save
         });
+
+        // Menu dropdown toggle
+        const menuBtn = document.getElementById('menuBtn');
+        const menuContent = document.getElementById('menuContent');
+        if (menuBtn && menuContent) {
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                menuContent.classList.toggle('show');
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.menu-dropdown')) {
+                    menuContent.classList.remove('show');
+                }
+            });
+        }
+
+        // Mode toggle menu item (Quick Fill ON/OFF)
+        const modeToggleMenuItem = document.getElementById('modeToggleMenuItem');
+        if (modeToggleMenuItem) {
+            modeToggleMenuItem.addEventListener('click', (e) => {
+                e.stopPropagation(); // Don't close menu
+                this.quickFillMode = !this.quickFillMode;
+                this.updateModeDisplay();
+            });
+        }
 
         // Preset selector
         presetSelect.addEventListener('change', (e) => {
@@ -637,7 +673,13 @@ class UI {
                 const patternType = e.target.value;
                 if (patternType) {
                     this.selectChannel(track); // Select channel on fill
-                    sequencer.fillTrack(track, patternType);
+
+                    if (patternType === 'random') {
+                        sequencer.randomizeTrack(track);
+                    } else {
+                        sequencer.fillTrack(track, patternType);
+                    }
+
                     this.updateGrid();
                     sequencer.save('autosave');
                     // Reset dropdown to placeholder
@@ -788,6 +830,37 @@ class UI {
                 stopBtn.disabled = true;
                 break;
         }
+    }
+
+    /**
+     * Update mode display (Quick Fill ON/OFF)
+     */
+    updateModeDisplay() {
+        const modeToggleMenuItem = document.getElementById('modeToggleMenuItem');
+        const fillSelects = document.querySelectorAll('.fill-select');
+        const randomButtons = document.querySelectorAll('.btn-random');
+
+        // Update menu item indicator
+        if (modeToggleMenuItem) {
+            const indicator = modeToggleMenuItem.querySelector('.toggle-indicator');
+            if (indicator) {
+                // Quick Fill ON = only Random button visible
+                // Quick Fill OFF = full dropdown visible
+                indicator.textContent = this.quickFillMode ? 'ON' : 'OFF';
+            }
+            modeToggleMenuItem.classList.toggle('active', this.quickFillMode);
+        }
+
+        // Show/hide fill dropdowns and random buttons
+        fillSelects.forEach(select => {
+            // Quick Fill ON = hide dropdown, Quick Fill OFF = show dropdown
+            select.style.display = this.quickFillMode ? 'none' : 'block';
+        });
+
+        randomButtons.forEach(btn => {
+            // Quick Fill ON = show Random button, Quick Fill OFF = hide Random button
+            btn.style.display = this.quickFillMode ? 'inline-block' : 'none';
+        });
     }
 
     /**

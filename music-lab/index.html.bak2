@@ -9,16 +9,19 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="page-header">
-        <h1>🎵 🧪 Music Lab</h1>
-    </header>
-
     <div class="container">
+        <header>
+            <h1>🎵 Music Lab</h1>
+        </header>
 
         <div class="top-controls">
             <button id="playBtn" class="btn btn-play">▶</button>
             <button id="pauseBtn" class="btn btn-pause" disabled>⏸</button>
             <button id="stopBtn" class="btn btn-stop" disabled>⏹</button>
+
+            <div class="spacer"></div>
+
+            <button id="modeToggleBtn" class="btn btn-mode-toggle">Simple</button>
 
             <div class="spacer"></div>
 
@@ -65,22 +68,13 @@
 
             <div class="spacer"></div>
 
-            <div class="menu-dropdown">
-                <button id="menuBtn" class="btn btn-menu" title="Menu">☰</button>
-                <div class="menu-content" id="menuContent">
-                    <button id="modeToggleMenuItem" class="menu-item menu-item-toggle">
-                        <span>Quick Fill</span>
-                        <span class="toggle-indicator">ON</span>
-                    </button>
-                    <div class="menu-divider"></div>
-                    <button id="clearBtn" class="menu-item">Clear Pattern</button>
-                    <button id="exportBtn" class="menu-item">Export JSON</button>
-                    <button id="importBtn" class="menu-item">Import JSON</button>
-                </div>
-                <input type="file" id="importFile" accept=".json" style="display: none;">
-            </div>
+            <button id="clearBtn" class="btn btn-clear" title="Clear current pattern">Clear</button>
 
             <div class="spacer"></div>
+
+            <button id="exportBtn" class="btn btn-export" title="Export as JSON">Export</button>
+            <button id="importBtn" class="btn btn-import" title="Import JSON">Import</button>
+            <input type="file" id="importFile" accept=".json" style="display: none;">
 
             <div class="bpm-control">
                 <label for="bpmSlider">BPM: <span id="bpmValue">120</span></label>
