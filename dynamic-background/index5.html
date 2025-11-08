@@ -29,9 +29,12 @@
         let heatGrid = Array(gridSize).fill(0).map(() => Array(gridSize).fill(0));
 
         const maxAge = 60000; // 60 seconden voor heat map
+        const maxSpots = 150; // Max aantal spots voor performance
         let heatSpots = []; // Lijst van alle heat spots met timestamp
+        let sortedCache = null; // Cache voor gesorteerde spots
+        let needsSort = true; // Flag of we opnieuw moeten sorteren
 
-        // Track muis elke 100ms (10x per seconde, laag CPU)
+        // Track muis elke 150ms (~7x per seconde, lagere CPU)
         setInterval(() => {
             const mouseX = event?.clientX;
             const mouseY = event?.clientY;
@@ -48,7 +51,15 @@
                     if (existing) {
                         existing.count++;
                         existing.lastSeen = Date.now();
+                        needsSort = true; // Update vereist nieuwe sort
                     } else {
+                        // Check of we max spots hebben bereikt
+                        if (heatSpots.length >= maxSpots) {
+                            // Verwijder oudste spot
+                            heatSpots.sort((a, b) => a.lastSeen - b.lastSeen);
+                            heatSpots.shift();
+                        }
+
                         heatSpots.push({
                             gridX,
                             gridY,
@@ -58,20 +69,25 @@
                             firstSeen: Date.now(),
                             lastSeen: Date.now()
                         });
+                        needsSort = true;
                     }
                 }
             }
-        }, 100);
+        }, 150);
+
+        // Batch cleanup elke 2 seconden
+        setInterval(() => {
+            const now = Date.now();
+            const beforeLength = heatSpots.length;
+            heatSpots = heatSpots.filter(spot => (now - spot.lastSeen) < maxAge);
+
+            if (beforeLength !== heatSpots.length) {
+                needsSort = true; // Spots verwijderd, opnieuw sorteren
+            }
+        }, 2000);
 
         // Render met requestAnimationFrame voor smooth updates
         function animate() {
-            const now = Date.now();
-
-            // Verwijder oude spots (ouder dan 60 sec) - niet elke frame, soms
-            if (Math.random() < 0.01) { // ~1% van de frames
-                heatSpots = heatSpots.filter(spot => (now - spot.lastSeen) < maxAge);
-            }
-
             // Render heat map elke frame
             renderHeatMap();
 
@@ -104,12 +120,18 @@
             const now = Date.now();
             let gradients = [];
 
-            // Sorteer spots - meest recente eerst (die komen bovenop in CSS)
-            const sortedSpots = [...heatSpots].sort((a, b) => b.lastSeen - a.lastSeen);
+            // Gebruik cache of sorteer opnieuw
+            if (needsSort || !sortedCache) {
+                sortedCache = [...heatSpots].sort((a, b) => b.lastSeen - a.lastSeen);
+                needsSort = false;
+            }
 
-            sortedSpots.forEach(spot => {
+            sortedCache.forEach(spot => {
                 const age = now - spot.lastSeen;
                 const opacity = 1 - (age / maxAge); // Fade out over tijd
+
+                // Skip bijna onzichtbare spots (performance boost)
+                if (opacity < 0.1) return;
 
                 const xPercent = (spot.x / window.innerWidth) * 100;
                 const yPercent = (spot.y / window.innerHeight) * 100;
