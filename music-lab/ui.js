@@ -20,10 +20,12 @@ class UI {
         this.createStepIndicators();
         this.setupControls();
         this.setupTrackControls();
+        this.setupPatternButtons();
         this.setupKeyboardShortcuts();
 
-        // Connect sequencer callback
+        // Connect sequencer callbacks
         sequencer.onStepChange = (step) => this.updateStepIndicator(step);
+        sequencer.onPatternChange = (patternIndex) => this.onPatternChange(patternIndex);
 
         // Load demo pattern
         sequencer.loadDemoPattern();
@@ -165,12 +167,20 @@ class UI {
             sequencer.save('autosave'); // Auto-save
         });
 
-        // Load saved pattern
+        // Load saved patterns
         if (sequencer.load('autosave')) {
             bpmSlider.value = sequencer.bpm;
             bpmValue.textContent = sequencer.bpm;
             this.updateGrid();
             this.updateTrackControlsUI();
+
+            // Update pattern button states
+            const currentPattern = sequencer.getCurrentPattern();
+            const patternButtons = document.querySelectorAll('.pattern-btn');
+            patternButtons.forEach(btn => {
+                const btnIndex = parseInt(btn.dataset.pattern);
+                btn.classList.toggle('active', btnIndex === currentPattern);
+            });
         }
 
         // Auto-save op pattern changes
@@ -254,6 +264,37 @@ class UI {
             const isSolo = sequencer.isTrackSolo(track);
             btn.classList.toggle('active', isSolo);
         });
+    }
+
+    /**
+     * Setup pattern selector buttons
+     */
+    setupPatternButtons() {
+        const patternButtons = document.querySelectorAll('.pattern-btn');
+
+        patternButtons.forEach(btn => {
+            const patternIndex = parseInt(btn.dataset.pattern);
+
+            btn.addEventListener('click', () => {
+                sequencer.switchPattern(patternIndex);
+                sequencer.save('autosave');
+            });
+        });
+    }
+
+    /**
+     * Handle pattern change
+     */
+    onPatternChange(patternIndex) {
+        // Update button states
+        const patternButtons = document.querySelectorAll('.pattern-btn');
+        patternButtons.forEach(btn => {
+            const btnIndex = parseInt(btn.dataset.pattern);
+            btn.classList.toggle('active', btnIndex === patternIndex);
+        });
+
+        // Update grid to show new pattern
+        this.updateGrid();
     }
 
     /**

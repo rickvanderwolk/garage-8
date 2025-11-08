@@ -8,10 +8,15 @@ class Sequencer {
         this.steps = 16;
         this.tracks = 4; // kick, snare, hihat, clap
 
-        // Pattern data: array van arrays [track][step]
-        this.pattern = this.createEmptyPattern();
+        // Multiple patterns (A, B, C, D)
+        this.numPatterns = 4;
+        this.currentPattern = 0;
+        this.patterns = [];
+        for (let i = 0; i < this.numPatterns; i++) {
+            this.patterns[i] = this.createEmptyPattern();
+        }
 
-        // Track controls
+        // Track controls (shared across patterns)
         this.trackVolumes = [0.7, 0.7, 0.7, 0.7]; // Volume per track (0-1)
         this.trackMuted = [false, false, false, false]; // Mute state per track
         this.trackSolo = [false, false, false, false]; // Solo state per track
@@ -28,6 +33,7 @@ class Sequencer {
 
         // Callbacks
         this.onStepChange = null; // Callback voor UI updates
+        this.onPatternChange = null; // Callback voor pattern change
     }
 
     /**
@@ -42,11 +48,19 @@ class Sequencer {
     }
 
     /**
+     * Get current pattern
+     */
+    getPattern() {
+        return this.patterns[this.currentPattern];
+    }
+
+    /**
      * Toggle een note aan/uit
      */
     toggleNote(track, step) {
         if (track >= 0 && track < this.tracks && step >= 0 && step < this.steps) {
-            this.pattern[track][step] = !this.pattern[track][step];
+            const pattern = this.getPattern();
+            pattern[track][step] = !pattern[track][step];
         }
     }
 
@@ -54,7 +68,39 @@ class Sequencer {
      * Check of een note actief is
      */
     isNoteActive(track, step) {
-        return this.pattern[track][step];
+        const pattern = this.getPattern();
+        return pattern[track][step];
+    }
+
+    /**
+     * Switch to a different pattern
+     */
+    switchPattern(patternIndex) {
+        if (patternIndex >= 0 && patternIndex < this.numPatterns) {
+            this.currentPattern = patternIndex;
+
+            if (this.onPatternChange) {
+                this.onPatternChange(patternIndex);
+            }
+        }
+    }
+
+    /**
+     * Get current pattern index
+     */
+    getCurrentPattern() {
+        return this.currentPattern;
+    }
+
+    /**
+     * Copy pattern to another slot
+     */
+    copyPattern(fromIndex, toIndex) {
+        if (fromIndex >= 0 && fromIndex < this.numPatterns &&
+            toIndex >= 0 && toIndex < this.numPatterns) {
+            // Deep copy
+            this.patterns[toIndex] = JSON.parse(JSON.stringify(this.patterns[fromIndex]));
+        }
     }
 
     /**
@@ -204,9 +250,12 @@ class Sequencer {
         // Check of er solo tracks zijn
         const hasSolo = this.trackSolo.some(solo => solo);
 
+        // Get current pattern
+        const pattern = this.getPattern();
+
         // Trigger alle actieve notes in deze step
         for (let track = 0; track < this.tracks; track++) {
-            if (this.pattern[track][step]) {
+            if (pattern[track][step]) {
                 // Check of track moet spelen (niet muted EN (geen solo OF track is solo))
                 const shouldPlay = !this.trackMuted[track] && (!hasSolo || this.trackSolo[track]);
 
@@ -232,46 +281,57 @@ class Sequencer {
     }
 
     /**
-     * Clear het hele pattern
+     * Clear current pattern
      */
     clear() {
-        this.pattern = this.createEmptyPattern();
+        this.patterns[this.currentPattern] = this.createEmptyPattern();
     }
 
     /**
-     * Demo pattern laden
+     * Clear all patterns
+     */
+    clearAll() {
+        for (let i = 0; i < this.numPatterns; i++) {
+            this.patterns[i] = this.createEmptyPattern();
+        }
+    }
+
+    /**
+     * Demo pattern laden (alleen pattern A)
      */
     loadDemoPattern() {
-        this.clear();
+        // Clear pattern A
+        this.patterns[0] = this.createEmptyPattern();
 
-        // Basic house beat
+        // Basic house beat in pattern A
         // Kick op 1, 5, 9, 13
-        this.pattern[0][0] = true;
-        this.pattern[0][4] = true;
-        this.pattern[0][8] = true;
-        this.pattern[0][12] = true;
+        this.patterns[0][0][0] = true;
+        this.patterns[0][0][4] = true;
+        this.patterns[0][0][8] = true;
+        this.patterns[0][0][12] = true;
 
         // Snare op 4, 12
-        this.pattern[1][4] = true;
-        this.pattern[1][12] = true;
+        this.patterns[0][1][4] = true;
+        this.patterns[0][1][12] = true;
 
         // Hi-hat op alle even beats
         for (let i = 0; i < 16; i += 2) {
-            this.pattern[2][i] = true;
+            this.patterns[0][2][i] = true;
         }
 
         // Clap op 4, 12 (samen met snare)
-        this.pattern[3][4] = true;
-        this.pattern[3][12] = true;
+        this.patterns[0][3][4] = true;
+        this.patterns[0][3][12] = true;
     }
 
     /**
-     * Save pattern naar localStorage
+     * Save all patterns naar localStorage
      */
     save(name = 'pattern') {
         const data = {
             bpm: this.bpm,
-            pattern: this.pattern,
+            patterns: this.patterns,
+            currentPattern: this.currentPattern,
             trackVolumes: this.trackVolumes,
             trackMuted: this.trackMuted,
             trackSolo: this.trackSolo
@@ -280,7 +340,7 @@ class Sequencer {
     }
 
     /**
-     * Load pattern van localStorage
+     * Load patterns van localStorage
      */
     load(name = 'pattern') {
         const stored = localStorage.getItem(`sequencer_${name}`);
@@ -288,7 +348,16 @@ class Sequencer {
             try {
                 const data = JSON.parse(stored);
                 this.bpm = data.bpm || 120;
-                this.pattern = data.pattern || this.createEmptyPattern();
+
+                // Load patterns (backwards compatible)
+                if (data.patterns) {
+                    this.patterns = data.patterns;
+                } else if (data.pattern) {
+                    // Old format - put in pattern A
+                    this.patterns[0] = data.pattern;
+                }
+
+                this.currentPattern = data.currentPattern || 0;
                 this.trackVolumes = data.trackVolumes || [0.7, 0.7, 0.7, 0.7];
                 this.trackMuted = data.trackMuted || [false, false, false, false];
                 this.trackSolo = data.trackSolo || [false, false, false, false];
