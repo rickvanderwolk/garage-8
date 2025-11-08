@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Tennis Game Controller</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      color: #fff;
+      min-height: 100vh;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #controller-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .controller-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .controller-screen.active {
+      display: flex;
+    }
+
+    .status-icon {
+      font-size: 60px;
+      margin-bottom: 15px;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 16px;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+
+    .big-button {
+      font-family: 'Courier New', monospace;
+      font-size: 18px;
+      padding: 18px 35px;
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-top: 20px;
+      transition: all 0.3s;
+    }
+
+    .big-button:active {
+      transform: scale(0.95);
+      background: #45a049;
+    }
+
+    .team-badge {
+      display: inline-block;
+      padding: 12px 30px;
+      font-size: 24px;
+      font-weight: bold;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      border: 3px solid;
+    }
+
+    .team-badge.team-left {
+      background: rgba(255, 68, 68, 0.2);
+      border-color: #ff4444;
+      color: #ff4444;
+    }
+
+    .team-badge.team-right {
+      background: rgba(68, 68, 255, 0.2);
+      border-color: #4444ff;
+      color: #4444ff;
+    }
+
+    #paddle-info {
+      font-size: 18px;
+      color: #fff;
+      margin-bottom: 20px;
+    }
+
+    #calibration-zone {
+      width: 100%;
+      max-width: 350px;
+      margin: 30px 0;
+    }
+
+    .paddle-display {
+      background: #111;
+      border: 2px solid #333;
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .paddle-bar {
+      height: 40px;
+      width: 100%;
+      background: #222;
+      border: 2px solid #444;
+      border-radius: 8px;
+      position: relative;
+      margin-bottom: 10px;
+    }
+
+    #paddle-indicator {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 30px;
+      background: #4CAF50;
+      border-radius: 5px;
+      transition: left 0.05s ease-out;
+      box-shadow: 0 0 15px currentColor;
+      border: 2px solid #fff;
+    }
+
+    #paddle-indicator.team-left {
+      background: #ff4444;
+      box-shadow: 0 0 15px #ff4444;
+    }
+
+    #paddle-indicator.team-right {
+      background: #4444ff;
+      box-shadow: 0 0 15px #4444ff;
+    }
+
+    .paddle-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #666;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .control-button {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      padding: 12px 25px;
+      background: #333;
+      color: #fff;
+      border: 2px solid #555;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      text-transform: uppercase;
+      transition: all 0.3s;
+    }
+
+    .control-button:active {
+      transform: scale(0.95);
+      background: #444;
+    }
+
+    .sensitivity-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      background: #111;
+      border: 2px solid #333;
+      border-radius: 8px;
+    }
+
+    .sensitivity-control label {
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    .sensitivity-control input[type="range"] {
+      flex: 1;
+      height: 6px;
+      background: #333;
+      outline: none;
+      border-radius: 3px;
+    }
+
+    .sensitivity-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #4CAF50;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+
+    #sensitivity-value {
+      font-weight: bold;
+      color: #4CAF50;
+      min-width: 25px;
+      text-align: right;
+      font-size: 14px;
+    }
+
+    #game-status {
+      margin: 20px 0;
+    }
+
+    #status-text {
+      font-size: 20px;
+      font-weight: bold;
+      color: #666;
+      transition: all 0.3s;
+    }
+
+    #status-text.active {
+      color: #4CAF50;
+      text-shadow: 0 0 10px #4CAF50;
+    }
+
+    .instructions {
+      margin-top: 20px;
+      padding: 15px;
+      background: #111;
+      border: 2px solid #333;
+      border-radius: 10px;
+      max-width: 350px;
+    }
+
+    .instructions h3 {
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: #4CAF50;
+    }
+
+    .instructions p {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
+
+    .debug {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      font-size: 10px;
+      color: #666;
+      background: rgba(0,0,0,0.5);
+      padding: 5px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="controller-body">
+  <div id="controller-container">
+    <!-- Connecting Screen -->
+    <div id="connecting" class="controller-screen active">
+      <div class="status-icon">📱</div>
+      <h2>Connecting...</h2>
+      <p>Please wait</p>
+    </div>
+
+    <!-- Permission Screen (iOS) -->
+    <div id="permission" class="controller-screen">
+      <div class="status-icon">🔐</div>
+      <h2>Motion Permission</h2>
+      <p>We need access to your device's motion sensors</p>
+      <button id="permission-button" class="big-button">ALLOW MOTION</button>
+    </div>
+
+    <!-- Connected Screen -->
+    <div id="connected" class="controller-screen">
+      <div id="team-indicator" class="team-badge"></div>
+      <p id="paddle-info">Paddle #1</p>
+
+      <div id="calibration-zone">
+        <div class="paddle-display">
+          <div class="paddle-bar">
+            <div id="paddle-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="game-status">
+        <p id="status-text">Waiting for game...</p>
+      </div>
+
+      <div class="instructions">
+        <h3>How to play:</h3>
+        <p>Move phone up/down to control paddle</p>
+        <p>Like moving a Wii controller</p>
+      </div>
+
+      <div class="instructions" style="margin-top: 15px; border-color: #ff9800;">
+        <h3 style="color: #ff9800;">Screen lock tip:</h3>
+        <p>Tap screen occasionally to prevent lock</p>
+        <p>Or: Settings → Display → Auto-Lock → Never</p>
+      </div>
+    </div>
+
+    <!-- Error Screen -->
+    <div id="error" class="controller-screen">
+      <div class="status-icon">❌</div>
+      <h2>Error</h2>
+      <p id="error-message">Connection error</p>
+      <button id="retry-button" class="big-button">RETRY</button>
+    </div>
+  </div>
+
+  <div id="debug" class="debug"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Screen elements
+    const screens = {
+      connecting: document.getElementById('connecting'),
+      permission: document.getElementById('permission'),
+      connected: document.getElementById('connected'),
+      error: document.getElementById('error')
+    };
+
+    // UI elements
+    const permissionButton = document.getElementById('permission-button');
+    const retryButton = document.getElementById('retry-button');
+    const teamIndicator = document.getElementById('team-indicator');
+    const paddleInfo = document.getElementById('paddle-info');
+    const statusText = document.getElementById('status-text');
+    const paddleIndicator = document.getElementById('paddle-indicator');
+    const errorMessage = document.getElementById('error-message');
+    const debugEl = document.getElementById('debug');
+
+    // Controller state
+    let team = null;
+    let paddleIndex = null;
+    let paddlePosition = 0.5; // Current paddle position (0-1)
+    let calibrationOffset = 0;
+    let sensitivity = 3;
+    let isTracking = false;
+    let lastMotionTime = Date.now();
+
+    // Performance optimization
+    let lastSocketEmit = 0;
+    let lastDOMUpdate = 0;
+    let lastEmittedPosition = 0.5;
+    const SOCKET_THROTTLE = 50; // 20 Hz (1000ms / 20)
+    const DOM_THROTTLE = 33; // 30 Hz (1000ms / 30)
+    const POSITION_THRESHOLD = 0.01; // Only emit if position changed >1%
+
+    // Debug logging
+    function debug(msg) {
+      console.log(msg);
+      debugEl.textContent = msg;
+    }
+
+    // Show screen
+    function showScreen(screenName) {
+      Object.values(screens).forEach(s => s.classList.remove('active'));
+      if (screens[screenName]) {
+        screens[screenName].classList.add('active');
+      }
+    }
+
+    // Show error
+    function showError(msg) {
+      errorMessage.textContent = msg;
+      showScreen('error');
+    }
+
+    // Request permission and start tracking
+    function requestPermission() {
+      debug('Requesting permission...');
+
+      if (typeof DeviceMotionEvent === 'undefined') {
+        showError('Device does not support motion sensors');
+        return;
+      }
+
+      // Check if permission is needed (iOS 13+)
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        debug('iOS device - showing permission button');
+        showScreen('permission');
+
+        // Remove old listener
+        const newButton = permissionButton.cloneNode(true);
+        permissionButton.parentNode.replaceChild(newButton, permissionButton);
+
+        newButton.addEventListener('click', async () => {
+          debug('Permission button clicked');
+          try {
+            const permission = await DeviceMotionEvent.requestPermission();
+            debug(`Permission result: ${permission}`);
+
+            if (permission === 'granted') {
+              startTracking();
+              showScreen('connected');
+            } else {
+              showError('Motion permission denied');
+            }
+          } catch (err) {
+            debug(`Permission error: ${err.message}`);
+            showError('Could not get permission: ' + err.message);
+          }
+        });
+      } else {
+        // Non-iOS or older iOS
+        debug('Non-iOS device - starting directly');
+        startTracking();
+        showScreen('connected');
+      }
+    }
+
+    // Start motion tracking
+    function startTracking() {
+      if (isTracking) return;
+
+      debug('Starting gyroscope tracking');
+      isTracking = true;
+      paddlePosition = 0.5; // Start in center
+      window.addEventListener('devicemotion', handleMotion);
+
+      // Test if events are firing
+      setTimeout(() => {
+        if (Date.now() - lastMotionTime > 2000) {
+          debug('No motion events received');
+        }
+      }, 2000);
+    }
+
+    // Handle device motion (gyroscope)
+    function handleMotion(event) {
+      if (!team) return;
+
+      const now = Date.now();
+      const deltaTime = (now - lastMotionTime) / 1000; // Convert to seconds
+      lastMotionTime = now;
+
+      // Get rotation rate (degrees per second)
+      const rotationRate = event.rotationRate;
+      if (!rotationRate || rotationRate.beta === null) {
+        return;
+      }
+
+      // beta: rotation around X-axis (forward/backward tilt)
+      // Positive beta = tilting phone forward = paddle goes down
+      // Negative beta = tilting phone backward = paddle goes up
+      let beta = rotationRate.beta;
+
+      // Apply calibration offset
+      beta -= calibrationOffset;
+
+      // Apply sensitivity (degrees/sec to position change)
+      const moveSpeed = (sensitivity / 3) * 0.01; // Adjust for smooth movement
+      const positionChange = -beta * moveSpeed * deltaTime;
+
+      // Update paddle position
+      paddlePosition += positionChange;
+      paddlePosition = Math.max(0, Math.min(1, paddlePosition));
+
+      // Throttle DOM updates to 30 Hz
+      if (now - lastDOMUpdate >= DOM_THROTTLE) {
+        lastDOMUpdate = now;
+        const indicatorPosition = paddlePosition * 100;
+        paddleIndicator.style.left = `${indicatorPosition}%`;
+        debug(`Beta: ${beta.toFixed(1)}° Pos: ${(paddlePosition * 100).toFixed(0)}%`);
+      }
+
+      // Throttle socket emissions to 20 Hz AND only if position changed significantly
+      if (now - lastSocketEmit >= SOCKET_THROTTLE) {
+        const positionDiff = Math.abs(paddlePosition - lastEmittedPosition);
+        if (positionDiff >= POSITION_THRESHOLD) {
+          lastSocketEmit = now;
+          lastEmittedPosition = paddlePosition;
+          socket.emit('paddleMove', { position: paddlePosition });
+        }
+      }
+    }
+
+    // Socket events
+    socket.on('connect', () => {
+      debug('Connected to server');
+      socket.emit('joinGame');
+    });
+
+    socket.on('teamAssigned', (data) => {
+      debug(`Assigned to ${data.team} team`);
+      team = data.team;
+      paddleIndex = data.paddleIndex;
+
+      teamIndicator.textContent = `${team.toUpperCase()} TEAM`;
+      teamIndicator.className = `team-badge team-${team}`;
+      paddleInfo.textContent = `Paddle #${paddleIndex + 1}`;
+
+      // Set paddle indicator color to team color
+      paddleIndicator.className = `team-${team}`;
+
+      requestPermission();
+    });
+
+    socket.on('gameStarted', () => {
+      statusText.textContent = 'GAME IN PROGRESS!';
+      statusText.classList.add('active');
+    });
+
+    socket.on('score', (data) => {
+      if (data.team === team) {
+        statusText.textContent = 'GOAL! 🎉';
+        setTimeout(() => {
+          statusText.textContent = 'GAME IN PROGRESS!';
+        }, 2000);
+      }
+    });
+
+    socket.on('gameOver', (data) => {
+      statusText.classList.remove('active');
+      if (data.winner === team) {
+        statusText.textContent = '🏆 YOU WON! 🏆';
+        statusText.style.color = '#4CAF50';
+      } else if (data.winner === 'draw') {
+        statusText.textContent = 'DRAW!';
+        statusText.style.color = '#FFC107';
+      } else {
+        statusText.textContent = 'YOU LOST';
+        statusText.style.color = '#f44336';
+      }
+    });
+
+    socket.on('disconnect', () => {
+      showError('Disconnected from server');
+    });
+
+    socket.on('connect_error', () => {
+      showError('Could not connect to server');
+    });
+
+    // Retry
+    retryButton.addEventListener('click', () => {
+      location.reload();
+    });
+
+    // Prevent scrolling
+    document.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('gesturestart', (e) => {
+      e.preventDefault();
+    });
+  </script>
+</body>
+</html>

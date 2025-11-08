@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multiplayer Tennis Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="container">
+    <!-- Lobby Screen -->
+    <div id="lobby" class="screen active">
+      <h1>MULTIPLAYER TENNIS GAME</h1>
+      <div id="connection-info">
+        <p>Connect with your phone:</p>
+        <div id="url-display"></div>
+      </div>
+      <div id="player-list">
+        <div class="team-section">
+          <h2 class="team-left">LEFT TEAM</h2>
+          <div id="left-players" class="player-count">0 players</div>
+        </div>
+        <div class="team-section">
+          <h2 class="team-right">RIGHT TEAM</h2>
+          <div id="right-players" class="player-count">0 players</div>
+        </div>
+      </div>
+      <button id="start-button" disabled>WAITING FOR PLAYERS...</button>
+      <p class="hint">Need at least 1 player per team</p>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game" class="screen">
+      <div id="game-ui">
+        <div id="score-display">
+          <span id="left-score" class="score">0</span>
+          <span id="timer">3:00</span>
+          <span id="right-score" class="score">0</span>
+        </div>
+      </div>
+      <canvas id="canvas" width="800" height="600"></canvas>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over" class="screen">
+      <h1>GAME OVER</h1>
+      <div id="winner-display"></div>
+      <div id="final-scores"></div>
+      <button id="restart-button">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Screens
+    const lobbyScreen = document.getElementById('lobby');
+    const gameScreen = document.getElementById('game');
+    const gameOverScreen = document.getElementById('game-over');
+
+    // UI elements
+    const startButton = document.getElementById('start-button');
+    const restartButton = document.getElementById('restart-button');
+    const leftPlayersEl = document.getElementById('left-players');
+    const rightPlayersEl = document.getElementById('right-players');
+    const leftScoreEl = document.getElementById('left-score');
+    const rightScoreEl = document.getElementById('right-score');
+    const timerEl = document.getElementById('timer');
+    const urlDisplayEl = document.getElementById('url-display');
+    const winnerDisplayEl = document.getElementById('winner-display');
+    const finalScoresEl = document.getElementById('final-scores');
+
+    // Game state
+    let gameState = null;
+    let lastGameState = null;
+    let animationFrameId = null;
+
+    // Display controller URL
+    const controllerUrl = window.location.origin + '/controller';
+    urlDisplayEl.innerHTML = `<strong>${controllerUrl}</strong>`;
+
+    // Socket event listeners
+    socket.on('gameState', (state) => {
+      lastGameState = gameState;
+      gameState = state;
+      updateUI();
+
+      if (state.gameStarted && !state.gameOver) {
+        showScreen('game');
+        // Only render if state changed or not rendering yet
+        if (!animationFrameId) {
+          render();
+        }
+      } else {
+        // Stop rendering when game not active
+        if (animationFrameId) {
+          clearTimeout(animationFrameId);
+          animationFrameId = null;
+        }
+      }
+    });
+
+    socket.on('playerUpdate', (data) => {
+      // Show AI indicator if present
+      const leftText = data.aiEnabled && data.aiTeam === 'left'
+        ? `${data.leftCount} player${data.leftCount !== 1 ? 's' : ''} (AI)`
+        : `${data.leftCount} player${data.leftCount !== 1 ? 's' : ''}`;
+
+      const rightText = data.aiEnabled && data.aiTeam === 'right'
+        ? `${data.rightCount} player${data.rightCount !== 1 ? 's' : ''} (AI)`
+        : `${data.rightCount} player${data.rightCount !== 1 ? 's' : ''}`;
+
+      leftPlayersEl.textContent = leftText;
+      rightPlayersEl.textContent = rightText;
+
+      if (data.canStart) {
+        startButton.disabled = false;
+        startButton.textContent = 'START GAME';
+      } else {
+        startButton.disabled = true;
+        startButton.textContent = 'WAITING FOR PLAYERS...';
+      }
+    });
+
+    socket.on('gameStarted', () => {
+      showScreen('game');
+    });
+
+    socket.on('score', (data) => {
+      // Flash effect on score
+      const scoreEl = data.team === 'left' ? leftScoreEl : rightScoreEl;
+      scoreEl.classList.add('flash');
+      setTimeout(() => scoreEl.classList.remove('flash'), 500);
+    });
+
+    socket.on('gameOver', (data) => {
+      // Stop rendering
+      if (animationFrameId) {
+        clearTimeout(animationFrameId);
+        animationFrameId = null;
+      }
+
+      showScreen('game-over');
+
+      if (data.winner === 'draw') {
+        winnerDisplayEl.innerHTML = `<h2 class="winner-text">IT'S A DRAW!</h2>`;
+      } else {
+        const teamName = data.winner.toUpperCase();
+        const teamClass = `team-${data.winner}`;
+        winnerDisplayEl.innerHTML = `<h2 class="winner-text ${teamClass}">${teamName} TEAM WINS!</h2>`;
+      }
+
+      finalScoresEl.innerHTML = `
+        <div class="final-score">
+          <span class="team-left">LEFT</span>
+          <span class="score-number">${data.scores.left}</span>
+        </div>
+        <div class="final-score">
+          <span class="team-right">RIGHT</span>
+          <span class="score-number">${data.scores.right}</span>
+        </div>
+      `;
+    });
+
+    // Button handlers
+    startButton.addEventListener('click', () => {
+      socket.emit('startGame');
+    });
+
+    restartButton.addEventListener('click', () => {
+      location.reload();
+    });
+
+    // Show/hide screens
+    function showScreen(screen) {
+      lobbyScreen.classList.remove('active');
+      gameScreen.classList.remove('active');
+      gameOverScreen.classList.remove('active');
+
+      if (screen === 'lobby') lobbyScreen.classList.add('active');
+      else if (screen === 'game') gameScreen.classList.add('active');
+      else if (screen === 'game-over') gameOverScreen.classList.add('active');
+    }
+
+    // Update UI
+    function updateUI() {
+      if (!gameState) return;
+
+      leftScoreEl.textContent = gameState.scores.left;
+      rightScoreEl.textContent = gameState.scores.right;
+
+      // Update timer
+      const seconds = Math.ceil(gameState.timeRemaining / 1000);
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      timerEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Render game
+    function render() {
+      if (!gameState) return;
+
+      // Clear canvas
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw center line
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 10]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw paddles - left team (red)
+      ctx.fillStyle = '#ff4444';
+      gameState.paddles.left.forEach((paddleY) => {
+        ctx.fillRect(20 - 5, paddleY - 40, 10, 80);
+      });
+
+      // Draw paddles - right team (blue)
+      ctx.fillStyle = '#4444ff';
+      gameState.paddles.right.forEach((paddleY) => {
+        ctx.fillRect(canvas.width - 20 - 5, paddleY - 40, 10, 80);
+      });
+
+      // Draw ball
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(gameState.ball.x, gameState.ball.y, gameState.ball.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Continue rendering if game is active
+      // Sync with server update rate (20 FPS) instead of display refresh rate
+      if (gameState.gameStarted && !gameState.gameOver) {
+        animationFrameId = setTimeout(render, 1000 / 20); // Match server broadcast rate
+      } else {
+        animationFrameId = null;
+      }
+    }
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "multiplayer-tennis-game",
+  "version": "1.0.0",
+  "description": "Multiplayer Tennis Game with phone motion controls",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["tennis", "multiplayer", "socket.io", "motion-controls"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  }
+}
