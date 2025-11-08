@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Background - Audio Multi-Band</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #0f0f1e;
+            position: relative;
+        }
+
+        #background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        #start {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-family: sans-serif;
+            z-index: 2000;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 12px 24px;
+            background: #5c7cfa;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #4c6ef5;
+        }
+    </style>
+</head>
+<body>
+    <div id="background"></div>
+
+    <div id="start">
+        <h2>Audio Multi-Band</h2>
+        <p>6 frequency bands, 4 gradients</p>
+        <button onclick="start()">Start</button>
+    </div>
+
+    <script>
+        let hue = 0;
+
+        async function start() {
+            // Verberg start button
+            document.getElementById('start').style.display = 'none';
+
+            // Setup audio
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const audioContext = new AudioContext();
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            // Animation loop
+            function draw() {
+                analyser.getByteFrequencyData(dataArray);
+
+                // 6 frequency ranges
+                const subBass = dataArray.slice(0, 3).reduce((a, b) => a + b) / 3 / 255;
+                const bass = dataArray.slice(3, 8).reduce((a, b) => a + b) / 5 / 255;
+                const lowMid = dataArray.slice(8, 15).reduce((a, b) => a + b) / 7 / 255;
+                const mid = dataArray.slice(15, 25).reduce((a, b) => a + b) / 10 / 255;
+                const highMid = dataArray.slice(25, 35).reduce((a, b) => a + b) / 10 / 255;
+                const treble = dataArray.slice(35, 50).reduce((a, b) => a + b) / 15 / 255;
+
+                // Update visueel
+                hue = (hue + bass * 3) % 360;
+
+                // Elke frequency band krijgt eigen positie
+                const pos1 = { x: 20 + subBass * 60, y: 20 + bass * 60 };
+                const pos2 = { x: 80 - lowMid * 60, y: 20 + mid * 60 };
+                const pos3 = { x: 50, y: 80 - highMid * 60 };
+                const pos4 = { x: 20 + treble * 60, y: 80 - subBass * 60 };
+
+                const blur = 25 + (treble + highMid) * 30;
+
+                // 4 gradients met verschillende kleuren per frequency
+                const bg = document.getElementById('background');
+                bg.style.background = `
+                    radial-gradient(circle at ${pos1.x}% ${pos1.y}%,
+                        hsl(${hue}, 85%, 60%) 0%, transparent ${25 + subBass * 45}%),
+                    radial-gradient(circle at ${pos2.x}% ${pos2.y}%,
+                        hsl(${(hue+90)%360}, 80%, 55%) 0%, transparent ${25 + bass * 45}%),
+                    radial-gradient(circle at ${pos3.x}% ${pos3.y}%,
+                        hsl(${(hue+180)%360}, 75%, 50%) 0%, transparent ${25 + mid * 45}%),
+                    radial-gradient(circle at ${pos4.x}% ${pos4.y}%,
+                        hsl(${(hue+270)%360}, 70%, 55%) 0%, transparent ${25 + treble * 45}%),
+                    #0f0f1e
+                `;
+                bg.style.filter = `blur(${blur}px)`;
+
+                requestAnimationFrame(draw);
+            }
+
+            draw();
+        }
+    </script>
+</body>
+</html>
