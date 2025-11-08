@@ -268,9 +268,17 @@ header h1 {
     box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
 }
 
+.instrument-select optgroup {
+    background: #0a2540;
+    color: #4CAF50;
+    font-weight: 700;
+    font-style: normal;
+}
+
 .instrument-select option {
     background: #0f3460;
     color: #fff;
+    padding-left: 10px;
 }
 
 .track-name {

@@ -91,12 +91,19 @@ class UI {
             // Clear existing options
             select.innerHTML = '';
 
-            // Add all available instruments
-            AVAILABLE_INSTRUMENTS.forEach(instrument => {
-                const option = document.createElement('option');
-                option.value = instrument.name;
-                option.textContent = instrument.displayName;
-                select.appendChild(option);
+            // Add grouped instruments with optgroups
+            AVAILABLE_INSTRUMENTS.forEach(group => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.category;
+
+                group.instruments.forEach(instrument => {
+                    const option = document.createElement('option');
+                    option.value = instrument.name;
+                    option.textContent = instrument.displayName;
+                    optgroup.appendChild(option);
+                });
+
+                select.appendChild(optgroup);
             });
 
             // Set current selection
@@ -106,14 +113,21 @@ class UI {
             // Add change listener
             select.addEventListener('change', (e) => {
                 const instrumentName = e.target.value;
-                const instrument = AVAILABLE_INSTRUMENTS.find(i => i.name === instrumentName);
-                if (instrument) {
-                    sequencer.setTrackInstrument(track, instrument.name, instrument.displayName);
+
+                // Find instrument in grouped structure
+                let foundInstrument = null;
+                AVAILABLE_INSTRUMENTS.forEach(group => {
+                    const inst = group.instruments.find(i => i.name === instrumentName);
+                    if (inst) foundInstrument = inst;
+                });
+
+                if (foundInstrument) {
+                    sequencer.setTrackInstrument(track, foundInstrument.name, foundInstrument.displayName);
                     sequencer.save('autosave');
 
                     // Preview sound
                     audioEngine.init();
-                    audioEngine.playInstrumentByName(instrument.name);
+                    audioEngine.playInstrumentByName(foundInstrument.name);
                 }
             });
         });

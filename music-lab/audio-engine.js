@@ -550,10 +550,409 @@ class AudioEngine {
     }
 
     /**
+     * RIDE CYMBAL
+     */
+    playRide(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.8, 0.2 * volume);
+
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 6000;
+        bandpass.Q.value = 2;
+
+        noise.gain.connect(bandpass);
+        bandpass.connect(this.masterGain);
+    }
+
+    /**
+     * 808 SNARE
+     */
+    play808Snare(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Tonal component
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc1.type = 'triangle';
+        osc2.type = 'triangle';
+        osc1.frequency.value = 185;
+        osc2.frequency.value = 225;
+
+        oscGain.gain.setValueAtTime(0.5 * volume, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+
+        osc1.connect(oscGain);
+        osc2.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        // Noise component
+        const noise = this.createNoise(t, 0.1, 0.3 * volume);
+
+        const highpass = ctx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 2000;
+
+        noise.gain.connect(highpass);
+        highpass.connect(this.masterGain);
+
+        osc1.start(t);
+        osc1.stop(t + 0.1);
+        osc2.start(t);
+        osc2.stop(t + 0.1);
+    }
+
+    /**
+     * BONGO
+     */
+    playBongo(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(250, t);
+        osc.frequency.exponentialRampToValueAtTime(180, t + 0.05);
+
+        oscGain.gain.setValueAtTime(volume * 0.6, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.15);
+    }
+
+    /**
+     * CONGA
+     */
+    playConga(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, t);
+        osc.frequency.exponentialRampToValueAtTime(150, t + 0.08);
+
+        oscGain.gain.setValueAtTime(volume * 0.7, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.2);
+    }
+
+    /**
+     * TIMBALE
+     */
+    playTimbale(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'square';
+        osc.frequency.value = 350;
+
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        // Add some noise for metallic sound
+        const noise = this.createNoise(t, 0.12, 0.15 * volume);
+        noise.gain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.12);
+    }
+
+    /**
+     * FM BASS
+     */
+    playFMBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Carrier
+        const carrier = ctx.createOscillator();
+        const carrierGain = ctx.createGain();
+
+        // Modulator
+        const modulator = ctx.createOscillator();
+        const modulatorGain = ctx.createGain();
+
+        carrier.frequency.value = 55; // A1
+        modulator.frequency.value = 110; // 2x carrier
+
+        modulatorGain.gain.setValueAtTime(100, t);
+        modulatorGain.gain.exponentialRampToValueAtTime(10, t + 0.3);
+
+        carrierGain.gain.setValueAtTime(volume * 0.8, t);
+        carrierGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+        modulator.connect(modulatorGain);
+        modulatorGain.connect(carrier.frequency);
+        carrier.connect(carrierGain);
+        carrierGain.connect(this.masterGain);
+
+        carrier.start(t);
+        carrier.stop(t + 0.4);
+        modulator.start(t);
+        modulator.stop(t + 0.4);
+    }
+
+    /**
+     * LEAD SYNTH
+     */
+    playLead(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.value = 440; // A4
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, t);
+        filter.frequency.exponentialRampToValueAtTime(400, t + 0.15);
+        filter.Q.value = 8;
+
+        oscGain.gain.setValueAtTime(volume * 0.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
+
+        osc.connect(filter);
+        filter.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.25);
+    }
+
+    /**
+     * PAD SYNTH
+     */
+    playPad(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Multiple detuned oscillators for thick pad sound
+        const oscs = [];
+        const oscGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        const detunes = [-7, 0, 7]; // Cents
+        detunes.forEach(detune => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = 220; // A3
+            osc.detune.value = detune;
+            osc.connect(oscGain);
+            oscs.push(osc);
+        });
+
+        filter.type = 'lowpass';
+        filter.frequency.value = 800;
+        filter.Q.value = 1;
+
+        oscGain.gain.setValueAtTime(volume * 0.15, t);
+        oscGain.gain.linearRampToValueAtTime(volume * 0.25, t + 0.1);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+
+        oscGain.connect(filter);
+        filter.connect(this.masterGain);
+
+        oscs.forEach(osc => {
+            osc.start(t);
+            osc.stop(t + 0.8);
+        });
+    }
+
+    /**
+     * BELL SYNTH
+     */
+    playBell(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Multiple harmonics for bell sound
+        const freqs = [523, 1046, 1568]; // C5 and harmonics
+        const oscs = [];
+        const gains = [];
+
+        freqs.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+
+            const vol = volume * (1 / (i + 1)) * 0.3;
+            gain.gain.setValueAtTime(vol, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 1.0);
+
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+
+            oscs.push(osc);
+            gains.push(gain);
+        });
+
+        oscs.forEach(osc => {
+            osc.start(t);
+            osc.stop(t + 1.0);
+        });
+    }
+
+    /**
+     * ZAP/LASER
+     */
+    playZap(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+
+        oscGain.gain.setValueAtTime(volume * 0.4, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.1);
+    }
+
+    /**
+     * BLIP
+     */
+    playBlip(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = 1000;
+
+        oscGain.gain.setValueAtTime(volume * 0.5, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.05);
+    }
+
+    /**
+     * NOISE BURST
+     */
+    playNoiseBurst(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.06, 0.3 * volume);
+        noise.gain.connect(this.masterGain);
+    }
+
+    /**
+     * CHORD STAB
+     */
+    playChord(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        // Major chord (C - E - G)
+        const freqs = [261.63, 329.63, 392.00];
+        const oscs = [];
+
+        freqs.forEach(freq => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sawtooth';
+            osc.frequency.value = freq;
+
+            gain.gain.setValueAtTime(volume * 0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+
+            osc.start(t);
+            osc.stop(t + 0.3);
+            oscs.push(osc);
+        });
+    }
+
+    /**
+     * VOCAL SYNTH (formant-like)
+     */
+    playVocal(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        // Formant filters
+        const filter1 = ctx.createBiquadFilter();
+        const filter2 = ctx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.value = 110;
+
+        filter1.type = 'bandpass';
+        filter1.frequency.value = 800;
+        filter1.Q.value = 10;
+
+        filter2.type = 'bandpass';
+        filter2.frequency.value = 1200;
+        filter2.Q.value = 10;
+
+        oscGain.gain.setValueAtTime(volume * 0.3, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+        osc.connect(filter1);
+        filter1.connect(filter2);
+        filter2.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.4);
+    }
+
+    /**
      * Play instrument by name
      */
     playInstrumentByName(instrumentName, time = 0, volume = 1) {
         switch(instrumentName) {
+            // Kicks
             case 'kick':
                 this.playKick(time, volume);
                 break;
@@ -563,29 +962,60 @@ class AudioEngine {
             case 'hard-kick':
                 this.playHardKick(time, volume);
                 break;
+            // Snares
             case 'snare':
                 this.playSnare(time, volume);
                 break;
             case 'punchy-snare':
                 this.playPunchySnare(time, volume);
                 break;
-            case 'rimshot':
-                this.playRimshot(time, volume);
+            case '808-snare':
+                this.play808Snare(time, volume);
                 break;
+            // Hats & Cymbals
             case 'hihat':
                 this.playHiHat(time, volume);
                 break;
+            case 'openhat':
+                this.playOpenHiHat(time, volume);
+                break;
+            case 'crash':
+                this.playCrash(time, volume);
+                break;
+            case 'ride':
+                this.playRide(time, volume);
+                break;
+            // Percussion
             case 'clap':
                 this.playClap(time, volume);
                 break;
             case 'tom':
                 this.playTom(time, volume);
                 break;
-            case 'openhat':
-                this.playOpenHiHat(time, volume);
+            case 'rimshot':
+                this.playRimshot(time, volume);
                 break;
+            case 'cowbell':
+                this.playCowbell(time, volume);
+                break;
+            case 'bongo':
+                this.playBongo(time, volume);
+                break;
+            case 'conga':
+                this.playConga(time, volume);
+                break;
+            case 'timbale':
+                this.playTimbale(time, volume);
+                break;
+            case 'perc':
+                this.playPerc(time, volume);
+                break;
+            // Bass
             case 'bass':
                 this.playBass(time, volume);
+                break;
+            case 'sub-bass':
+                this.playSubBass(time, volume);
                 break;
             case 'reese-bass':
                 this.playReeseBass(time, volume);
@@ -593,23 +1023,40 @@ class AudioEngine {
             case 'acid-bass':
                 this.playAcidBass(time, volume);
                 break;
-            case 'sub-bass':
-                this.playSubBass(time, volume);
+            case 'fm-bass':
+                this.playFMBass(time, volume);
                 break;
-            case 'perc':
-                this.playPerc(time, volume);
-                break;
+            // Synths
             case 'stab':
                 this.playStab(time, volume);
                 break;
             case 'pluck':
                 this.playPluck(time, volume);
                 break;
-            case 'cowbell':
-                this.playCowbell(time, volume);
+            case 'lead':
+                this.playLead(time, volume);
                 break;
-            case 'crash':
-                this.playCrash(time, volume);
+            case 'pad':
+                this.playPad(time, volume);
+                break;
+            case 'bell':
+                this.playBell(time, volume);
+                break;
+            case 'chord':
+                this.playChord(time, volume);
+                break;
+            case 'vocal':
+                this.playVocal(time, volume);
+                break;
+            // FX
+            case 'zap':
+                this.playZap(time, volume);
+                break;
+            case 'blip':
+                this.playBlip(time, volume);
+                break;
+            case 'noise':
+                this.playNoiseBurst(time, volume);
                 break;
         }
     }
@@ -627,25 +1074,74 @@ class AudioEngine {
 // Global instance
 const audioEngine = new AudioEngine();
 
-// Available instruments list (sorted alphabetically by displayName)
+// Available instruments list (grouped by category)
 const AVAILABLE_INSTRUMENTS = [
-    { name: '808-kick', displayName: '808 Kick' },
-    { name: 'acid-bass', displayName: 'Acid Bass' },
-    { name: 'bass', displayName: 'Bass' },
-    { name: 'clap', displayName: 'Clap' },
-    { name: 'cowbell', displayName: 'Cowbell' },
-    { name: 'crash', displayName: 'Crash' },
-    { name: 'hard-kick', displayName: 'Hard Kick' },
-    { name: 'hihat', displayName: 'Hi-Hat' },
-    { name: 'kick', displayName: 'Kick' },
-    { name: 'openhat', displayName: 'Open HH' },
-    { name: 'perc', displayName: 'Perc' },
-    { name: 'pluck', displayName: 'Pluck' },
-    { name: 'punchy-snare', displayName: 'Punchy Snare' },
-    { name: 'reese-bass', displayName: 'Reese Bass' },
-    { name: 'rimshot', displayName: 'Rimshot' },
-    { name: 'snare', displayName: 'Snare' },
-    { name: 'stab', displayName: 'Stab' },
-    { name: 'sub-bass', displayName: 'Sub Bass' },
-    { name: 'tom', displayName: 'Tom' }
+    {
+        category: 'Kicks',
+        instruments: [
+            { name: 'kick', displayName: 'Kick' },
+            { name: '808-kick', displayName: '808 Kick' },
+            { name: 'hard-kick', displayName: 'Hard Kick' }
+        ]
+    },
+    {
+        category: 'Snares',
+        instruments: [
+            { name: 'snare', displayName: 'Snare' },
+            { name: 'punchy-snare', displayName: 'Punchy Snare' },
+            { name: '808-snare', displayName: '808 Snare' }
+        ]
+    },
+    {
+        category: 'Hats & Cymbals',
+        instruments: [
+            { name: 'hihat', displayName: 'Hi-Hat' },
+            { name: 'openhat', displayName: 'Open HH' },
+            { name: 'crash', displayName: 'Crash' },
+            { name: 'ride', displayName: 'Ride' }
+        ]
+    },
+    {
+        category: 'Percussion',
+        instruments: [
+            { name: 'clap', displayName: 'Clap' },
+            { name: 'tom', displayName: 'Tom' },
+            { name: 'rimshot', displayName: 'Rimshot' },
+            { name: 'cowbell', displayName: 'Cowbell' },
+            { name: 'bongo', displayName: 'Bongo' },
+            { name: 'conga', displayName: 'Conga' },
+            { name: 'timbale', displayName: 'Timbale' },
+            { name: 'perc', displayName: 'Shaker' }
+        ]
+    },
+    {
+        category: 'Bass',
+        instruments: [
+            { name: 'bass', displayName: 'Bass' },
+            { name: 'sub-bass', displayName: 'Sub Bass' },
+            { name: 'reese-bass', displayName: 'Reese Bass' },
+            { name: 'acid-bass', displayName: 'Acid Bass' },
+            { name: 'fm-bass', displayName: 'FM Bass' }
+        ]
+    },
+    {
+        category: 'Synths',
+        instruments: [
+            { name: 'stab', displayName: 'Stab' },
+            { name: 'pluck', displayName: 'Pluck' },
+            { name: 'lead', displayName: 'Lead' },
+            { name: 'pad', displayName: 'Pad' },
+            { name: 'bell', displayName: 'Bell' },
+            { name: 'chord', displayName: 'Chord' },
+            { name: 'vocal', displayName: 'Vocal' }
+        ]
+    },
+    {
+        category: 'FX',
+        instruments: [
+            { name: 'zap', displayName: 'Zap' },
+            { name: 'blip', displayName: 'Blip' },
+            { name: 'noise', displayName: 'Noise' }
+        ]
+    }
 ];
