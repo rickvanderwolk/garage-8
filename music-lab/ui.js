@@ -27,6 +27,7 @@ class UI {
         this.setupKeyboardShortcuts();
         this.setupMobileInterface();
         this.updateModeDisplay(); // Initialize mode display
+        this.alignStepIndicators(); // Align step indicators with grid
 
         // Connect sequencer callbacks
         sequencer.onStepChange = (step) => this.updateStepIndicator(step);
@@ -568,6 +569,16 @@ class UI {
             });
         }
 
+        // Mobile mode toggle (Quick Fill)
+        const mobileModeToggle = document.getElementById('mobileModeToggle');
+        if (mobileModeToggle) {
+            mobileModeToggle.addEventListener('click', () => {
+                this.quickFillMode = !this.quickFillMode;
+                this.updateModeDisplay();
+                // Don't close menu on toggle
+            });
+        }
+
         // Mobile BPM slider
         const mobileBpmSlider = document.getElementById('mobileBpmSlider');
         const mobileBpmValue = document.getElementById('mobileBpmValue');
@@ -837,10 +848,11 @@ class UI {
      */
     updateModeDisplay() {
         const modeToggleMenuItem = document.getElementById('modeToggleMenuItem');
+        const mobileModeToggle = document.getElementById('mobileModeToggle');
         const fillSelects = document.querySelectorAll('.fill-select');
         const randomButtons = document.querySelectorAll('.btn-random');
 
-        // Update menu item indicator
+        // Update desktop menu item indicator
         if (modeToggleMenuItem) {
             const indicator = modeToggleMenuItem.querySelector('.toggle-indicator');
             if (indicator) {
@@ -849,6 +861,15 @@ class UI {
                 indicator.textContent = this.quickFillMode ? 'ON' : 'OFF';
             }
             modeToggleMenuItem.classList.toggle('active', this.quickFillMode);
+        }
+
+        // Update mobile toggle button
+        if (mobileModeToggle) {
+            const indicator = mobileModeToggle.querySelector('.toggle-indicator');
+            if (indicator) {
+                indicator.textContent = this.quickFillMode ? 'ON' : 'OFF';
+            }
+            mobileModeToggle.classList.toggle('active', this.quickFillMode);
         }
 
         // Show/hide fill dropdowns and random buttons
@@ -861,6 +882,25 @@ class UI {
             // Quick Fill ON = show Random button, Quick Fill OFF = hide Random button
             btn.style.display = this.quickFillMode ? 'inline-block' : 'none';
         });
+    }
+
+    /**
+     * Align step indicators with grid by calculating exact track-controls width
+     */
+    alignStepIndicators() {
+        const trackControls = document.querySelector('.track-controls');
+        const sequencer = document.querySelector('.sequencer');
+
+        if (trackControls && this.stepIndicators) {
+            // Get computed width of track-controls
+            const trackControlsWidth = trackControls.offsetWidth;
+            // Get gap from sequencer (10px)
+            const computedStyle = window.getComputedStyle(sequencer);
+            const gap = parseInt(computedStyle.gap) || 10;
+
+            // Set margin-left to match track-controls width + gap
+            this.stepIndicators.style.marginLeft = `${trackControlsWidth + gap}px`;
+        }
     }
 
     /**

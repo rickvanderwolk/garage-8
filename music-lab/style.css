@@ -667,24 +667,29 @@ body {
 
 @media (max-width: 768px) {
     body {
-        padding: 0;
+        padding: 12px 0 0 0;
         overflow-x: hidden;
+        align-items: center;
     }
 
     .container {
         padding: 8px;
         border-radius: 0;
         min-height: 100vh;
+        width: 100%;
     }
 
-    header {
+    .page-header {
         margin-bottom: 12px;
-        padding: 8px 0;
+        padding: 0;
+        text-align: center;
+        width: 100%;
     }
 
-    header h1 {
-        font-size: 1.3em;
+    .page-header h1 {
+        font-size: 1.5em;
         margin-bottom: 0;
+        text-align: center;
     }
 
     /* Hide desktop controls */
@@ -818,6 +823,25 @@ body {
 
     .mobile-menu-section .btn:last-child {
         margin-bottom: 0;
+    }
+
+    .mobile-menu-section .btn-mode-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 16px;
+    }
+
+    .mobile-menu-section .btn-mode-toggle .toggle-indicator {
+        background: #607D8B;
+        padding: 6px 14px;
+        border-radius: 14px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .mobile-menu-section .btn-mode-toggle.active .toggle-indicator {
+        background: #2196F3;
     }
 
     /* Mobile pattern & BPM */
