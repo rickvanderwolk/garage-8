@@ -429,6 +429,14 @@ header h1 {
     transition: all 0.15s;
 }
 
+/* Highlight first beat of each group (every 4th step) */
+.grid-cell[data-step="0"],
+.grid-cell[data-step="4"],
+.grid-cell[data-step="8"],
+.grid-cell[data-step="12"] {
+    border-left: 3px solid #667eea;
+}
+
 
 .grid-cell:hover {
     background: #16213e;
@@ -477,6 +485,15 @@ header h1 {
     color: #888;
     font-size: 12px;
     font-weight: 600;
+}
+
+/* Highlight first beat of each group */
+.step-indicator:nth-child(1),
+.step-indicator:nth-child(5),
+.step-indicator:nth-child(9),
+.step-indicator:nth-child(13) {
+    color: #667eea;
+    font-weight: 700;
 }
 
 .step-indicator.current {
