@@ -8,6 +8,7 @@ class UI {
         this.stepIndicators = document.getElementById('stepIndicators');
         this.gridCells = [];
         this.currentStepCells = [];
+        this.selectedChannel = 0; // Default to first channel
 
         this.init();
     }
@@ -32,6 +33,9 @@ class UI {
         // Load demo pattern
         sequencer.loadDemoPattern();
         this.updateGrid();
+
+        // Set initial channel selection
+        this.updateChannelSelection();
     }
 
     /**
@@ -51,6 +55,7 @@ class UI {
 
                 // Click handler
                 cell.addEventListener('click', () => {
+                    this.selectChannel(track); // Select channel on click
                     sequencer.toggleNote(track, step);
                     this.updateCell(track, step);
 
@@ -112,6 +117,7 @@ class UI {
 
             // Add change listener
             select.addEventListener('change', (e) => {
+                this.selectChannel(track); // Select channel on instrument change
                 const instrumentName = e.target.value;
 
                 // Find instrument in grouped structure
@@ -141,6 +147,26 @@ class UI {
         if (selectors[track]) {
             selectors[track].value = instrumentName;
         }
+    }
+
+    /**
+     * Select a channel
+     */
+    selectChannel(channel) {
+        if (channel >= 0 && channel < sequencer.tracks) {
+            this.selectedChannel = channel;
+            this.updateChannelSelection();
+        }
+    }
+
+    /**
+     * Update visual feedback for selected channel
+     */
+    updateChannelSelection() {
+        const trackControls = document.querySelectorAll('.track-control');
+        trackControls.forEach((control, index) => {
+            control.classList.toggle('selected', index === this.selectedChannel);
+        });
     }
 
     /**
@@ -334,6 +360,7 @@ class UI {
             const track = parseInt(slider.dataset.track);
 
             slider.addEventListener('input', (e) => {
+                this.selectChannel(track); // Select channel on volume change
                 const volume = parseInt(e.target.value);
                 sequencer.setTrackVolume(track, volume);
                 sequencer.save('autosave');
@@ -346,6 +373,7 @@ class UI {
             const track = parseInt(btn.dataset.track);
 
             btn.addEventListener('click', () => {
+                this.selectChannel(track); // Select channel on clear
                 sequencer.clearTrack(track);
                 this.updateGrid();
                 sequencer.save('autosave');
@@ -358,6 +386,7 @@ class UI {
             const track = parseInt(btn.dataset.track);
 
             btn.addEventListener('click', () => {
+                this.selectChannel(track); // Select channel on random
                 sequencer.randomizeTrack(track);
                 this.updateGrid();
                 sequencer.save('autosave');
@@ -370,6 +399,7 @@ class UI {
             const track = parseInt(btn.dataset.track);
 
             btn.addEventListener('click', () => {
+                this.selectChannel(track); // Select channel on mute
                 const isMuted = sequencer.toggleMute(track);
                 btn.classList.toggle('active', isMuted);
 
@@ -387,6 +417,7 @@ class UI {
             const track = parseInt(btn.dataset.track);
 
             btn.addEventListener('click', () => {
+                this.selectChannel(track); // Select channel on solo
                 const isSolo = sequencer.toggleSolo(track);
                 btn.classList.toggle('active', isSolo);
                 sequencer.save('autosave');
@@ -604,8 +635,13 @@ class UI {
      */
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
+            // Skip if typing in input field
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
             // Spacebar = play/pause
-            if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+            if (e.code === 'Space') {
                 e.preventDefault();
                 if (sequencer.isPlaying) {
                     sequencer.pause();
@@ -624,23 +660,62 @@ class UI {
                 this.updateStepIndicator(0);
             }
 
-            // A, B, C, D = switch patterns
-            if (e.code === 'KeyA' && !e.ctrlKey && !e.metaKey) {
+            // Numbers 1-8 = select channel
+            if (e.code >= 'Digit1' && e.code <= 'Digit8' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                const channel = parseInt(e.code.replace('Digit', '')) - 1;
+                this.selectChannel(channel);
+            }
+
+            // Shift + C = clear selected channel
+            if (e.code === 'KeyC' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.clearTrack(this.selectedChannel);
+                this.updateGrid();
+                sequencer.save('autosave');
+            }
+
+            // Shift + R = random selected channel
+            if (e.code === 'KeyR' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.randomizeTrack(this.selectedChannel);
+                this.updateGrid();
+                sequencer.save('autosave');
+            }
+
+            // Shift + M = mute toggle selected channel
+            if (e.code === 'KeyM' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.toggleMute(this.selectedChannel);
+                this.updateTrackControlsUI();
+                sequencer.save('autosave');
+            }
+
+            // Shift + S = solo toggle selected channel
+            if (e.code === 'KeyS' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                sequencer.toggleSolo(this.selectedChannel);
+                this.updateTrackControlsUI();
+                sequencer.save('autosave');
+            }
+
+            // A, B, C, D = switch patterns (without Shift)
+            if (e.code === 'KeyA' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 sequencer.switchPattern(0);
                 sequencer.save('autosave');
             }
-            if (e.code === 'KeyB' && !e.ctrlKey && !e.metaKey) {
+            if (e.code === 'KeyB' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 sequencer.switchPattern(1);
                 sequencer.save('autosave');
             }
-            if (e.code === 'KeyC' && !e.ctrlKey && !e.metaKey) {
+            if (e.code === 'KeyC' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 sequencer.switchPattern(2);
                 sequencer.save('autosave');
             }
-            if (e.code === 'KeyD' && !e.ctrlKey && !e.metaKey) {
+            if (e.code === 'KeyD' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 sequencer.switchPattern(3);
                 sequencer.save('autosave');
