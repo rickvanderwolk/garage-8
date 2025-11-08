@@ -31,8 +31,41 @@ class UI {
         sequencer.onPatternChange = (patternIndex) => this.onPatternChange(patternIndex);
         sequencer.onInstrumentChange = (track, instrumentName, displayName) => this.updateInstrumentSelector(track, instrumentName);
 
-        // Load demo pattern
-        sequencer.loadDemoPattern();
+        // Load saved pattern or demo pattern
+        const hasLoadedPattern = sequencer.load('autosave');
+        if (!hasLoadedPattern) {
+            // Only load demo if no saved pattern exists
+            sequencer.loadDemoPattern();
+        } else {
+            // Update BPM displays if pattern was loaded
+            const bpmSlider = document.getElementById('bpmSlider');
+            const bpmValue = document.getElementById('bpmValue');
+            const mobileBpmSlider = document.getElementById('mobileBpmSlider');
+            const mobileBpmValue = document.getElementById('mobileBpmValue');
+
+            if (bpmSlider) bpmSlider.value = sequencer.bpm;
+            if (bpmValue) bpmValue.textContent = sequencer.bpm;
+            if (mobileBpmSlider) mobileBpmSlider.value = sequencer.bpm;
+            if (mobileBpmValue) mobileBpmValue.textContent = sequencer.bpm;
+
+            // Update instrument selectors
+            for (let i = 0; i < sequencer.tracks; i++) {
+                const instrumentName = sequencer.getTrackInstrument(i);
+                this.updateInstrumentSelector(i, instrumentName);
+            }
+
+            // Update track controls
+            this.updateTrackControlsUI();
+
+            // Update pattern buttons
+            const currentPattern = sequencer.getCurrentPattern();
+            const patternButtons = document.querySelectorAll('.pattern-btn');
+            patternButtons.forEach(btn => {
+                const btnIndex = parseInt(btn.dataset.pattern);
+                btn.classList.toggle('active', btnIndex === currentPattern);
+            });
+        }
+
         this.updateGrid();
 
         // Set initial channel selection
