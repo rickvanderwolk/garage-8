@@ -28,6 +28,8 @@
 
             <div class="spacer"></div>
 
+            <button id="clearBtn" class="btn btn-clear" title="Clear current pattern">Clear</button>
+
             <div class="bpm-control">
                 <label for="bpmSlider">BPM: <span id="bpmValue">120</span></label>
                 <input type="range" id="bpmSlider" min="60" max="200" value="120">
@@ -40,6 +42,7 @@
                     <div class="track-header">
                         <span class="track-name">Kick</span>
                         <div class="track-buttons">
+                            <button class="btn-random" data-track="0" title="Randomize">R</button>
                             <button class="btn-mute" data-track="0" title="Mute">M</button>
                             <button class="btn-solo" data-track="0" title="Solo">S</button>
                         </div>
@@ -50,6 +53,7 @@
                     <div class="track-header">
                         <span class="track-name">Snare</span>
                         <div class="track-buttons">
+                            <button class="btn-random" data-track="1" title="Randomize">R</button>
                             <button class="btn-mute" data-track="1" title="Mute">M</button>
                             <button class="btn-solo" data-track="1" title="Solo">S</button>
                         </div>
@@ -60,6 +64,7 @@
                     <div class="track-header">
                         <span class="track-name">Hi-Hat</span>
                         <div class="track-buttons">
+                            <button class="btn-random" data-track="2" title="Randomize">R</button>
                             <button class="btn-mute" data-track="2" title="Mute">M</button>
                             <button class="btn-solo" data-track="2" title="Solo">S</button>
                         </div>
@@ -70,11 +75,56 @@
                     <div class="track-header">
                         <span class="track-name">Clap</span>
                         <div class="track-buttons">
+                            <button class="btn-random" data-track="3" title="Randomize">R</button>
                             <button class="btn-mute" data-track="3" title="Mute">M</button>
                             <button class="btn-solo" data-track="3" title="Solo">S</button>
                         </div>
                     </div>
                     <input type="range" class="volume-slider" data-track="3" min="0" max="100" value="70" title="Volume">
+                </div>
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Tom</span>
+                        <div class="track-buttons">
+                            <button class="btn-random" data-track="4" title="Randomize">R</button>
+                            <button class="btn-mute" data-track="4" title="Mute">M</button>
+                            <button class="btn-solo" data-track="4" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="4" min="0" max="100" value="70" title="Volume">
+                </div>
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Open HH</span>
+                        <div class="track-buttons">
+                            <button class="btn-random" data-track="5" title="Randomize">R</button>
+                            <button class="btn-mute" data-track="5" title="Mute">M</button>
+                            <button class="btn-solo" data-track="5" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="5" min="0" max="100" value="70" title="Volume">
+                </div>
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Bass</span>
+                        <div class="track-buttons">
+                            <button class="btn-random" data-track="6" title="Randomize">R</button>
+                            <button class="btn-mute" data-track="6" title="Mute">M</button>
+                            <button class="btn-solo" data-track="6" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="6" min="0" max="100" value="70" title="Volume">
+                </div>
+                <div class="track-control">
+                    <div class="track-header">
+                        <span class="track-name">Perc</span>
+                        <div class="track-buttons">
+                            <button class="btn-random" data-track="7" title="Randomize">R</button>
+                            <button class="btn-mute" data-track="7" title="Mute">M</button>
+                            <button class="btn-solo" data-track="7" title="Solo">S</button>
+                        </div>
+                    </div>
+                    <input type="range" class="volume-slider" data-track="7" min="0" max="100" value="70" title="Volume">
                 </div>
             </div>
 

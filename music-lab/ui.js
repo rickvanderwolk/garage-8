@@ -137,6 +137,7 @@ class UI {
         const playBtn = document.getElementById('playBtn');
         const pauseBtn = document.getElementById('pauseBtn');
         const stopBtn = document.getElementById('stopBtn');
+        const clearBtn = document.getElementById('clearBtn');
         const bpmSlider = document.getElementById('bpmSlider');
         const bpmValue = document.getElementById('bpmValue');
 
@@ -157,6 +158,15 @@ class UI {
             sequencer.stop();
             this.updateControlButtons('stopped');
             this.updateStepIndicator(0);
+        });
+
+        // Clear button
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Clear current pattern?')) {
+                sequencer.clear();
+                this.updateGrid();
+                sequencer.save('autosave');
+            }
         });
 
         // BPM slider
@@ -190,7 +200,7 @@ class UI {
     }
 
     /**
-     * Setup track controls (volume, mute, solo)
+     * Setup track controls (volume, mute, solo, random)
      */
     setupTrackControls() {
         // Volume sliders
@@ -201,6 +211,18 @@ class UI {
             slider.addEventListener('input', (e) => {
                 const volume = parseInt(e.target.value);
                 sequencer.setTrackVolume(track, volume);
+                sequencer.save('autosave');
+            });
+        });
+
+        // Random buttons
+        const randomButtons = document.querySelectorAll('.btn-random');
+        randomButtons.forEach(btn => {
+            const track = parseInt(btn.dataset.track);
+
+            btn.addEventListener('click', () => {
+                sequencer.randomizeTrack(track);
+                this.updateGrid();
                 sequencer.save('autosave');
             });
         });
@@ -370,22 +392,6 @@ class UI {
                 sequencer.switchPattern(3);
                 sequencer.save('autosave');
             }
-
-            // X = clear
-            if (e.code === 'KeyX' && !e.ctrlKey && !e.metaKey) {
-                if (confirm('Clear hele pattern?')) {
-                    sequencer.clear();
-                    this.updateGrid();
-                    sequencer.save('autosave');
-                }
-            }
-
-            // L = load demo
-            if (e.code === 'KeyL' && !e.ctrlKey && !e.metaKey) {
-                sequencer.loadDemoPattern();
-                this.updateGrid();
-                sequencer.save('autosave');
-            }
         });
     }
 }
@@ -400,6 +406,4 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('  Space - Play/Pause');
     console.log('  Escape - Stop');
     console.log('  A/B/C/D - Switch patterns');
-    console.log('  L - Load demo pattern');
-    console.log('  X - Clear pattern');
 });

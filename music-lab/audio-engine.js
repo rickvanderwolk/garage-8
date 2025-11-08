@@ -172,10 +172,105 @@ class AudioEngine {
     }
 
     /**
+     * TOM DRUM
+     * Midrange drum sound
+     */
+    playTom(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        // Tom pitch envelope
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(60, t + 0.1);
+
+        oscGain.gain.setValueAtTime(volume * 0.8, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.3);
+    }
+
+    /**
+     * OPEN HI-HAT
+     * Longer sustain hi-hat
+     */
+    playOpenHiHat(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.3, 0.25 * volume);
+
+        // High-pass filter voor metallic sound
+        const highpass = ctx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 7000;
+
+        // Bandpass voor extra resonantie
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 10000;
+        bandpass.Q.value = 1;
+
+        noise.gain.connect(highpass);
+        highpass.connect(bandpass);
+        bandpass.connect(this.masterGain);
+    }
+
+    /**
+     * 808 BASS
+     * Sub bass synth
+     */
+    playBass(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = 65; // C2 note
+
+        oscGain.gain.setValueAtTime(volume * 0.9, t);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+
+        osc.start(t);
+        osc.stop(t + 0.4);
+    }
+
+    /**
+     * PERCUSSION / SHAKER
+     * Fast noise burst
+     */
+    playPerc(time = 0, volume = 1) {
+        const ctx = this.audioContext;
+        const t = time || ctx.currentTime;
+
+        const noise = this.createNoise(t, 0.08, 0.15 * volume);
+
+        // Bandpass voor shaker karakter
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 4000;
+        bandpass.Q.value = 2;
+
+        noise.gain.connect(bandpass);
+        bandpass.connect(this.masterGain);
+    }
+
+    /**
      * Play instrument by index
      */
     playInstrument(instrumentIndex, time = 0, volume = 1) {
-        const instruments = ['kick', 'snare', 'hihat', 'clap'];
+        const instruments = ['kick', 'snare', 'hihat', 'clap', 'tom', 'openhat', 'bass', 'perc'];
         const instrument = instruments[instrumentIndex];
 
         switch(instrument) {
@@ -190,6 +285,18 @@ class AudioEngine {
                 break;
             case 'clap':
                 this.playClap(time, volume);
+                break;
+            case 'tom':
+                this.playTom(time, volume);
+                break;
+            case 'openhat':
+                this.playOpenHiHat(time, volume);
+                break;
+            case 'bass':
+                this.playBass(time, volume);
+                break;
+            case 'perc':
+                this.playPerc(time, volume);
                 break;
         }
     }

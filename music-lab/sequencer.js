@@ -6,7 +6,7 @@ class Sequencer {
     constructor() {
         this.bpm = 120;
         this.steps = 16;
-        this.tracks = 4; // kick, snare, hihat, clap
+        this.tracks = 8; // kick, snare, hihat, clap, tom, openhat, bass, perc
 
         // Multiple patterns (A, B, C, D)
         this.numPatterns = 4;
@@ -17,9 +17,9 @@ class Sequencer {
         }
 
         // Track controls (shared across patterns)
-        this.trackVolumes = [0.7, 0.7, 0.7, 0.7]; // Volume per track (0-1)
-        this.trackMuted = [false, false, false, false]; // Mute state per track
-        this.trackSolo = [false, false, false, false]; // Solo state per track
+        this.trackVolumes = [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]; // Volume per track (0-1)
+        this.trackMuted = [false, false, false, false, false, false, false, false]; // Mute state per track
+        this.trackSolo = [false, false, false, false, false, false, false, false]; // Solo state per track
 
         // Playback state
         this.isPlaying = false;
@@ -288,6 +288,33 @@ class Sequencer {
     }
 
     /**
+     * Randomize een specifieke track
+     */
+    randomizeTrack(track) {
+        if (track < 0 || track >= this.tracks) return;
+
+        const pattern = this.getPattern();
+
+        // Different density per instrument type voor muzikaal resultaat
+        let density = 0.3; // Default 30% kans
+
+        if (track === 0 || track === 6) { // Kick & Bass
+            density = 0.25; // Minder dicht
+        } else if (track === 1 || track === 3) { // Snare & Clap
+            density = 0.2; // Nog minder (backbeat)
+        } else if (track === 2 || track === 5) { // Hi-hats
+            density = 0.4; // Dichter voor hi-hats
+        } else if (track === 7) { // Perc/shaker
+            density = 0.5; // Meest dicht
+        }
+
+        // Genereer random pattern
+        for (let step = 0; step < this.steps; step++) {
+            pattern[track][step] = Math.random() < density;
+        }
+    }
+
+    /**
      * Clear all patterns
      */
     clearAll() {
@@ -304,17 +331,17 @@ class Sequencer {
         this.patterns[0] = this.createEmptyPattern();
 
         // Basic house beat in pattern A
-        // Kick op 1, 5, 9, 13
+        // Kick op 1, 5, 9, 13 (four on the floor)
         this.patterns[0][0][0] = true;
         this.patterns[0][0][4] = true;
         this.patterns[0][0][8] = true;
         this.patterns[0][0][12] = true;
 
-        // Snare op 4, 12
+        // Snare op 4, 12 (backbeat)
         this.patterns[0][1][4] = true;
         this.patterns[0][1][12] = true;
 
-        // Hi-hat op alle even beats
+        // Closed hi-hat op alle even beats (8th notes)
         for (let i = 0; i < 16; i += 2) {
             this.patterns[0][2][i] = true;
         }
@@ -322,6 +349,27 @@ class Sequencer {
         // Clap op 4, 12 (samen met snare)
         this.patterns[0][3][4] = true;
         this.patterns[0][3][12] = true;
+
+        // Tom fills op 14, 15 (end of bar fill)
+        this.patterns[0][4][14] = true;
+        this.patterns[0][4][15] = true;
+
+        // Open hi-hat op offbeats (tussen closed hats)
+        this.patterns[0][5][3] = true;
+        this.patterns[0][5][7] = true;
+        this.patterns[0][5][11] = true;
+        this.patterns[0][5][15] = true;
+
+        // Bass op 1, 5, 9, 13 (met kick mee)
+        this.patterns[0][6][0] = true;
+        this.patterns[0][6][4] = true;
+        this.patterns[0][6][8] = true;
+        this.patterns[0][6][12] = true;
+
+        // Perc/shaker op alle 16th notes (constant rhythm)
+        for (let i = 0; i < 16; i++) {
+            this.patterns[0][7][i] = true;
+        }
     }
 
     /**
@@ -352,15 +400,47 @@ class Sequencer {
                 // Load patterns (backwards compatible)
                 if (data.patterns) {
                     this.patterns = data.patterns;
+
+                    // Extend old 4-track patterns to 8 tracks
+                    for (let i = 0; i < this.patterns.length; i++) {
+                        if (this.patterns[i].length < 8) {
+                            // Add empty tracks for new instruments
+                            for (let t = this.patterns[i].length; t < 8; t++) {
+                                this.patterns[i][t] = new Array(this.steps).fill(false);
+                            }
+                        }
+                    }
                 } else if (data.pattern) {
-                    // Old format - put in pattern A
+                    // Old format - put in pattern A and extend
                     this.patterns[0] = data.pattern;
+                    if (this.patterns[0].length < 8) {
+                        for (let t = this.patterns[0].length; t < 8; t++) {
+                            this.patterns[0][t] = new Array(this.steps).fill(false);
+                        }
+                    }
                 }
 
                 this.currentPattern = data.currentPattern || 0;
-                this.trackVolumes = data.trackVolumes || [0.7, 0.7, 0.7, 0.7];
-                this.trackMuted = data.trackMuted || [false, false, false, false];
-                this.trackSolo = data.trackSolo || [false, false, false, false];
+
+                // Extend track volumes/muted/solo arrays if needed
+                if (data.trackVolumes && data.trackVolumes.length < 8) {
+                    this.trackVolumes = [...data.trackVolumes, ...new Array(8 - data.trackVolumes.length).fill(0.7)];
+                } else {
+                    this.trackVolumes = data.trackVolumes || [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7];
+                }
+
+                if (data.trackMuted && data.trackMuted.length < 8) {
+                    this.trackMuted = [...data.trackMuted, ...new Array(8 - data.trackMuted.length).fill(false)];
+                } else {
+                    this.trackMuted = data.trackMuted || [false, false, false, false, false, false, false, false];
+                }
+
+                if (data.trackSolo && data.trackSolo.length < 8) {
+                    this.trackSolo = [...data.trackSolo, ...new Array(8 - data.trackSolo.length).fill(false)];
+                } else {
+                    this.trackSolo = data.trackSolo || [false, false, false, false, false, false, false, false];
+                }
+
                 return true;
             } catch (e) {
                 console.error('Failed to load pattern:', e);

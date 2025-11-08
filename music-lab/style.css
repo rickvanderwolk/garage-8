@@ -132,6 +132,18 @@ header h1 {
     transform: translateY(-2px);
 }
 
+.btn-clear {
+    background: #9E9E9E;
+    color: white;
+    width: auto;
+    padding: 0 16px;
+}
+
+.btn-clear:hover:not(:disabled) {
+    background: #757575;
+    transform: translateY(-2px);
+}
+
 .bpm-control {
     display: flex;
     align-items: center;
@@ -200,6 +212,7 @@ header h1 {
     gap: 4px;
 }
 
+.btn-random,
 .btn-mute,
 .btn-solo {
     width: 24px;
@@ -214,9 +227,19 @@ header h1 {
     color: #888;
 }
 
+.btn-random:hover,
 .btn-mute:hover,
 .btn-solo:hover {
     transform: scale(1.1);
+}
+
+.btn-random {
+    background: #9C27B0;
+    color: white;
+}
+
+.btn-random:hover {
+    background: #7B1FA2;
 }
 
 .btn-mute.active {
@@ -273,7 +296,7 @@ header h1 {
 .grid-container {
     display: grid;
     grid-template-columns: repeat(16, 1fr);
-    grid-template-rows: repeat(4, 50px);
+    grid-template-rows: repeat(8, 50px);
     gap: 8px;
     flex: 1;
 }
@@ -349,7 +372,7 @@ header h1 {
 
     .grid-container {
         grid-template-columns: repeat(8, 1fr);
-        grid-template-rows: repeat(4, 40px);
+        grid-template-rows: repeat(8, 40px);
     }
 
     .track-label {
