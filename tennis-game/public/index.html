@@ -13,6 +13,7 @@
       <h1>MULTIPLAYER TENNIS GAME</h1>
       <div id="connection-info">
         <p>Connect with your phone:</p>
+        <img id="qr-code" alt="QR Code" />
         <div id="url-display"></div>
       </div>
       <div id="player-list">
@@ -72,6 +73,7 @@
     const urlDisplayEl = document.getElementById('url-display');
     const winnerDisplayEl = document.getElementById('winner-display');
     const finalScoresEl = document.getElementById('final-scores');
+    const qrCodeImg = document.getElementById('qr-code');
 
     // Game state
     let gameState = null;
@@ -81,6 +83,16 @@
     // Display controller URL
     const controllerUrl = window.location.origin + '/controller';
     urlDisplayEl.innerHTML = `<strong>${controllerUrl}</strong>`;
+
+    // Load QR code from server
+    fetch('/api/qrcode')
+      .then(response => response.json())
+      .then(data => {
+        qrCodeImg.src = data.qrCode;
+      })
+      .catch(error => {
+        console.error('Failed to load QR code:', error);
+      });
 
     // Socket event listeners
     socket.on('gameState', (state) => {

@@ -4,6 +4,7 @@ const fs = require('fs');
 const socketIO = require('socket.io');
 const path = require('path');
 const os = require('os');
+const QRCode = require('qrcode');
 
 const app = express();
 
@@ -24,6 +25,26 @@ app.use(express.static('public'));
 // Route for controller
 app.get('/controller', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'controller.html'));
+});
+
+// API endpoint for QR code
+app.get('/api/qrcode', async (req, res) => {
+  try {
+    const localIP = getLocalIP();
+    const controllerUrl = `https://${localIP}:${PORT}/controller`;
+    const qrCodeDataUrl = await QRCode.toDataURL(controllerUrl, {
+      width: 200,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    });
+    res.json({ qrCode: qrCodeDataUrl });
+  } catch (error) {
+    console.error('QR code generation error:', error);
+    res.status(500).json({ error: 'Failed to generate QR code' });
+  }
 });
 
 // Game state
