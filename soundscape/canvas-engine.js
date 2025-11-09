@@ -33,6 +33,21 @@ class CanvasEngine {
         // Set default styles
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
+
+        // Fill background with current theme color
+        this.fillBackground();
+    }
+
+    fillBackground() {
+        // Get background color from CSS variable
+        const bgColor = getComputedStyle(document.documentElement)
+            .getPropertyValue('--bg-color').trim();
+
+        // Fill canvas background
+        this.ctx.save();
+        this.ctx.fillStyle = bgColor;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.restore();
     }
 
     setupEventListeners() {
@@ -180,13 +195,13 @@ class CanvasEngine {
     }
 
     clear() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.fillBackground();
         this.strokes = [];
     }
 
     redraw() {
-        // Clear canvas
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        // Clear canvas and fill with background
+        this.fillBackground();
 
         // Redraw all strokes
         this.strokes.forEach(stroke => {
