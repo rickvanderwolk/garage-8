@@ -41,6 +41,9 @@ class AmbientAudioEngine {
 
         this.reverb = this.audioContext.createConvolver();
         this.reverb.buffer = impulse;
+
+        // Connect reverb to master gain
+        this.reverb.connect(this.masterGain);
     }
 
     /**
@@ -61,14 +64,14 @@ class AmbientAudioEngine {
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, t);
 
-            // Slow fade in/out
+            // Slow fade in/out with hold
             gain.gain.setValueAtTime(0, t);
             gain.gain.linearRampToValueAtTime(volume * 0.15, t + 0.3);
+            gain.gain.linearRampToValueAtTime(volume * 0.15, t + duration - 0.5);
             gain.gain.linearRampToValueAtTime(0, t + duration);
 
             osc.connect(gain);
             gain.connect(this.reverb);
-            this.reverb.connect(this.masterGain);
 
             osc.start(t);
             osc.stop(t + duration);
@@ -101,7 +104,6 @@ class AmbientAudioEngine {
         osc.connect(filter);
         filter.connect(gain);
         gain.connect(this.reverb);
-        this.reverb.connect(this.masterGain);
 
         osc.start(t);
         osc.stop(t + duration);
@@ -132,7 +134,6 @@ class AmbientAudioEngine {
 
             osc.connect(gain);
             gain.connect(this.reverb);
-            this.reverb.connect(this.masterGain);
 
             osc.start(t);
             osc.stop(t + duration);
@@ -161,7 +162,6 @@ class AmbientAudioEngine {
 
             osc.connect(gain);
             gain.connect(this.reverb);
-            this.reverb.connect(this.masterGain);
 
             osc.start(t);
             osc.stop(t + duration);
@@ -202,7 +202,6 @@ class AmbientAudioEngine {
         noise.connect(filter);
         filter.connect(gain);
         gain.connect(this.reverb);
-        this.reverb.connect(this.masterGain);
 
         noise.start(t);
     }
@@ -272,7 +271,6 @@ class AmbientAudioEngine {
         noise.connect(filter);
         filter.connect(gain);
         gain.connect(this.reverb);
-        this.reverb.connect(this.masterGain);
 
         noise.start(t);
     }
@@ -331,7 +329,6 @@ class AmbientAudioEngine {
         osc.connect(filter);
         filter.connect(gain);
         gain.connect(this.reverb);
-        this.reverb.connect(this.masterGain);
 
         osc.start(t);
         osc.stop(t + duration);
@@ -370,7 +367,6 @@ class AmbientAudioEngine {
         noise.connect(filter);
         filter.connect(gain);
         gain.connect(this.reverb);
-        this.reverb.connect(this.masterGain);
 
         noise.start(t);
     }
@@ -398,7 +394,6 @@ class AmbientAudioEngine {
 
             osc.connect(gain);
             gain.connect(this.reverb);
-            this.reverb.connect(this.masterGain);
 
             osc.start(t);
             osc.stop(t + duration);
@@ -431,7 +426,6 @@ class AmbientAudioEngine {
         osc.connect(filter);
         filter.connect(gain);
         gain.connect(this.reverb);
-        this.reverb.connect(this.masterGain);
 
         osc.start(t);
         osc.stop(t + duration);

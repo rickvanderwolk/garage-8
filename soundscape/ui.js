@@ -25,16 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error('Error initializing audio:', error);
             }
+        } else if (audioEngine.audioContext && audioEngine.audioContext.state === 'suspended') {
+            // If already initialized but suspended, just resume
+            audioEngine.audioContext.resume();
         }
     }
 
-    // Initialize audio immediately
-    initAudio();
-
-    // Also init on user interactions as fallback
-    document.addEventListener('click', initAudio);
-    canvasEngine.canvas.addEventListener('touchstart', initAudio);
-    canvasEngine.canvas.addEventListener('mousedown', initAudio);
+    // Wait for user interactions to init audio
+    document.addEventListener('click', initAudio, { once: false });
+    canvasEngine.canvas.addEventListener('touchstart', initAudio, { once: false });
+    canvasEngine.canvas.addEventListener('mousedown', initAudio, { once: false });
 
     // Initialize color palette
     const colorPalette = document.getElementById('colorPalette');
