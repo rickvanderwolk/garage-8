@@ -111,6 +111,12 @@ class SoundMapper {
         // Skip if pixel is transparent (not drawn)
         if (a < 10) return null;
 
+        // Skip if pixel is background color (white or dark)
+        // Check for white background (light mode)
+        if (r > 250 && g > 250 && b > 250) return null;
+        // Check for dark background (dark mode)
+        if (r < 20 && g < 20 && b < 20) return null;
+
         // Convert RGB to hex color
         const hexColor = '#' + [r, g, b].map(x => {
             const hex = x.toString(16);
