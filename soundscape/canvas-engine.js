@@ -26,9 +26,9 @@ class CanvasEngine {
     }
 
     setupCanvas() {
-        // Set canvas to full screen minus toolbar
+        // Set canvas to full screen
         this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight - 60; // 60px toolbar
+        this.canvas.height = window.innerHeight;
 
         // Set default styles
         this.ctx.lineCap = 'round';
