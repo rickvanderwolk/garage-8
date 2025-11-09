@@ -26,16 +26,9 @@ class CanvasEngine {
     }
 
     setupCanvas() {
-        // Set canvas size - match the display size exactly
-        const container = this.canvas.parentElement;
-        const maxWidth = Math.min(container.clientWidth - 40, 800);
-        const maxHeight = Math.min(600, window.innerHeight - 300);
-
-        // Set both canvas internal size and display size
-        this.canvas.width = maxWidth;
-        this.canvas.height = maxHeight;
-        this.canvas.style.width = maxWidth + 'px';
-        this.canvas.style.height = maxHeight + 'px';
+        // Set canvas to full screen minus toolbar
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight - 60; // 60px toolbar
 
         // Set default styles
         this.ctx.lineCap = 'round';
