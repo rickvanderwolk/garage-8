@@ -4,7 +4,7 @@ class PlaybackEngine {
         this.soundMapper = soundMapper;
 
         this.isPlaying = false;
-        this.playbackSpeed = 3; // 1-10 scale (default slower)
+        this.playbackSpeed = 7; // 1-10 scale (faster default)
         this.scanPosition = 0;
         this.scanWidth = 1; // Width of the scan line in pixels
         this.lastScanTime = 0;
@@ -17,10 +17,12 @@ class PlaybackEngine {
             return;
         }
 
+        console.log('[Playback] Starting scan loop...');
         this.isPlaying = true;
         this.scanPosition = 0;
         this.lastScanTime = performance.now();
         this.scan();
+        console.log('[Playback] Scan loop initiated');
     }
 
     stop() {
@@ -84,13 +86,34 @@ class PlaybackEngine {
                 );
 
                 if (soundParams) {
-                    this.soundMapper.audioEngine.playInstrumentByName(
-                        soundParams.instrument,
-                        undefined,
-                        soundParams.volume * 0.5
-                    );
-                    soundsTriggered++;
+                    // Only play if audio context is running
+                    const audioContext = this.soundMapper.audioEngine.audioContext;
+                    if (audioContext && audioContext.state === 'running') {
+                        // Log first trigger at every 50th position
+                        if (soundsTriggered === 0 && x % 50 === 0) {
+                            console.log(`[Playback] 🔊 Triggered ${soundParams.instrument} at x:${x} y:${y} vol:${(soundParams.volume * 0.8).toFixed(2)}`);
+                        }
+                        this.soundMapper.audioEngine.playInstrumentByName(
+                            soundParams.instrument,
+                            undefined,
+                            soundParams.volume * 0.8  // Increased from 0.5 to 0.8
+                        );
+                        soundsTriggered++;
+                    } else if (audioContext && audioContext.state === 'suspended') {
+                        // Try to resume on first sound trigger
+                        console.warn('[Playback] Audio context suspended, trying to resume...');
+                        audioContext.resume().catch(err => {
+                            console.error('[Playback] Failed to resume audio context:', err);
+                        });
+                    }
                 }
+            }
+
+            // Log scan results every 10 positions (but only if sounds were triggered)
+            if (x % 10 === 0 && soundsTriggered > 0) {
+                console.log(`[Playback] Scan position: ${x} 🔊 Sounds triggered in this column: ${soundsTriggered}`);
+            } else if (x % 100 === 0) {
+                console.log(`[Playback] Scan position: ${x} (no sounds)`);
             }
 
             // Trigger visual update

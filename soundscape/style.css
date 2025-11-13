@@ -158,6 +158,83 @@ body {
     background: var(--bg-color);
 }
 
+/* Start Overlay - alleen tonen indien nodig */
+.start-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: none; /* Standaard verborgen, JS toont indien nodig */
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+}
+
+.start-overlay.hidden {
+    display: none !important;
+}
+
+.start-content {
+    text-align: center;
+}
+
+.start-content h1 {
+    display: none; /* Verberg titel, alleen knop tonen */
+}
+
+.start-content p {
+    display: none; /* Verberg tekst, alleen knop tonen */
+}
+
+.start-button {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    cursor: pointer;
+    font-size: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+}
+
+@media (prefers-color-scheme: dark) {
+    .start-button {
+        background: rgba(30, 30, 30, 0.9);
+        color: #e0e0e0;
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+}
+
+.start-button:hover {
+    transform: scale(1.15);
+    background: rgba(255, 255, 255, 1);
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+    .start-button:hover {
+        background: rgba(50, 50, 50, 0.95);
+    }
+}
+
+.start-button:active {
+    transform: scale(0.95);
+}
+
+.start-button:disabled {
+    opacity: 0.5;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
     .toolbar {
@@ -181,6 +258,12 @@ body {
         width: 36px;
         height: 36px;
         font-size: 16px;
+    }
+
+    .start-button {
+        width: 70px;
+        height: 70px;
+        font-size: 28px;
     }
 }
 
@@ -206,5 +289,11 @@ body {
         width: 32px;
         height: 32px;
         font-size: 14px;
+    }
+
+    .start-button {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
     }
 }

@@ -18,7 +18,7 @@ class AmbientAudioEngine {
 
         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         this.masterGain = this.audioContext.createGain();
-        this.masterGain.gain.value = 0.4; // Zachter master volume
+        this.masterGain.gain.value = 0.8; // Master volume (increased from 0.4)
 
         // Create reverb for ambient feel
         this.createReverb();
@@ -66,8 +66,8 @@ class AmbientAudioEngine {
 
             // Slow fade in/out with hold
             gain.gain.setValueAtTime(0, t);
-            gain.gain.linearRampToValueAtTime(volume * 0.15, t + 0.3);
-            gain.gain.linearRampToValueAtTime(volume * 0.15, t + duration - 0.5);
+            gain.gain.linearRampToValueAtTime(volume * 0.3, t + 0.3);
+            gain.gain.linearRampToValueAtTime(volume * 0.3, t + duration - 0.5);
             gain.gain.linearRampToValueAtTime(0, t + duration);
 
             osc.connect(gain);
@@ -98,7 +98,7 @@ class AmbientAudioEngine {
         filter.frequency.setValueAtTime(800, t);
 
         gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(volume * 0.2, t + 0.1);
+        gain.gain.linearRampToValueAtTime(volume * 0.4, t + 0.1);
         gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
         osc.connect(filter);
@@ -157,7 +157,7 @@ class AmbientAudioEngine {
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, t);
 
-            gain.gain.setValueAtTime(volume * 0.15, t);
+            gain.gain.setValueAtTime(volume * 0.35, t);
             gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
             osc.connect(gain);
@@ -225,7 +225,7 @@ class AmbientAudioEngine {
             filter.type = 'highpass';
             filter.frequency.value = 1000;
 
-            gain.gain.setValueAtTime(volume * 0.1, t + delay);
+            gain.gain.setValueAtTime(volume * 0.3, t + delay);
             gain.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.1);
 
             osc.connect(filter);
@@ -290,7 +290,7 @@ class AmbientAudioEngine {
             const freq = 2000 + Math.random() * 2000;
             osc.frequency.setValueAtTime(freq, t + i * 0.05);
 
-            gain.gain.setValueAtTime(volume * 0.15, t + i * 0.05);
+            gain.gain.setValueAtTime(volume * 0.35, t + i * 0.05);
             gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.05 + 0.3);
 
             osc.connect(gain);
@@ -389,7 +389,7 @@ class AmbientAudioEngine {
             osc.frequency.setValueAtTime(freq, t);
             osc.frequency.linearRampToValueAtTime(freq * 0.98, t + duration);
 
-            gain.gain.setValueAtTime(volume * 0.1, t);
+            gain.gain.setValueAtTime(volume * 0.3, t);
             gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
             osc.connect(gain);
