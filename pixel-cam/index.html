@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Cam</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <video id="video" autoplay playsinline style="display: none;"></video>
+
+    <div class="controls">
+        <div class="button-group">
+            <button class="resolution-btn" data-resolution="normal">Normal</button>
+            <button class="resolution-btn" data-resolution="16">16x16</button>
+            <button class="resolution-btn active" data-resolution="8">8x8</button>
+            <button class="resolution-btn" data-resolution="4">4x4</button>
+        </div>
+        <div class="button-group">
+            <button class="aspect-btn" id="aspectBtn">Square</button>
+            <button class="aspect-btn" id="freezeBtn">Freeze</button>
+            <button class="aspect-btn" id="saveBtn" style="display: none;">Save</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
