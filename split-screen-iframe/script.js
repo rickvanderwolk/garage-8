@@ -135,9 +135,27 @@ function renderLayouts(count) {
 
 urlsInput.oninput = () => renderLayouts(getUrls().length);
 
+// Load saved state
+const saved = JSON.parse(localStorage.getItem('splitscreen') || 'null');
+if (saved) {
+    urlsInput.value = saved.urls;
+    scaleInput.value = saved.scale;
+    scaleValue.textContent = saved.scale + '%';
+    renderLayouts(getUrls().length);
+    if (saved.layoutIndex >= 0) {
+        layoutsContainer.children[saved.layoutIndex]?.click();
+    }
+}
+
 startButton.onclick = () => {
     const urls = getUrls();
     if (!urls.length || !selectedLayout) return;
+
+    localStorage.setItem('splitscreen', JSON.stringify({
+        urls: urlsInput.value,
+        scale: scaleInput.value,
+        layoutIndex: [...layoutsContainer.children].indexOf(layoutsContainer.querySelector('.selected'))
+    }));
 
     setup.classList.add('hidden');
     viewer.classList.add('active');
