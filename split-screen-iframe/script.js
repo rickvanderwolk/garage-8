@@ -4,8 +4,14 @@ const layoutsContainer = $('layouts');
 const startButton = $('start');
 const setup = $('setup');
 const viewer = $('viewer');
+const scaleInput = $('scale');
+const scaleValue = $('scale-value');
 
 let selectedLayout = null;
+
+scaleInput.oninput = () => {
+    scaleValue.textContent = scaleInput.value + '%';
+};
 
 // Predefined layouts for 2-6 items
 // Areas format: row-start/col-start/row-end/col-end
@@ -138,10 +144,21 @@ startButton.onclick = () => {
     viewer.style.gridTemplateColumns = selectedLayout.cols;
     viewer.style.gridTemplateRows = selectedLayout.rows;
 
+    const scale = scaleInput.value / 100;
+
     urls.forEach((url, i) => {
+        const container = document.createElement('div');
+        container.className = 'frame loading';
+        if (selectedLayout.areas?.[i]) container.style.gridArea = selectedLayout.areas[i];
+
         const iframe = document.createElement('iframe');
         iframe.src = url.includes('://') ? url : 'https://' + url;
-        if (selectedLayout.areas?.[i]) iframe.style.gridArea = selectedLayout.areas[i];
-        viewer.appendChild(iframe);
+        iframe.style.width = (100 / scale) + '%';
+        iframe.style.height = (100 / scale) + '%';
+        iframe.style.transform = `scale(${scale})`;
+        iframe.onload = () => container.classList.remove('loading');
+
+        container.appendChild(iframe);
+        viewer.appendChild(container);
     });
 };
