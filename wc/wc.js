@@ -3,7 +3,9 @@
 
   // State
   let logs = [];
+  let requests = [];
   let filter = 'error';
+  let netFilter = 'all';
   let activePanel = 'console';
   let customHeight = null;
   let isResizing = false;
@@ -28,16 +30,36 @@
     #wc-filters button{background:0;color:#888;border:none;padding:3px 8px;cursor:pointer;font:10px inherit;transition:.15s}
     #wc-filters button:hover{background:rgba(255,255,255,.08);color:#ccc}
     #wc-filters button.on{background:rgba(58,126,255,.2);color:#6cb2ff}
-    #wc[data-p=storage] #wc-filters{display:none}
+    #wc[data-p=storage] #wc-filters,#wc[data-p=network] #wc-filters{display:none}
     .cnt{background:rgba(255,255,255,.15);padding:1px 5px;border-radius:10px;font-size:9px;margin-left:4px}
     .cnt-error{background:rgba(255,85,85,.3);color:#ff8888}
     .cnt-warn{background:rgba(255,200,0,.25);color:#ffd666}
     .cnt-info{background:rgba(58,126,255,.25);color:#6cb2ff}
     #wc-content{flex:1;overflow:hidden;display:flex;flex-direction:column}
-    #wc-logs,#wc-storage{flex:1;overflow-y:auto}
-    #wc-storage{display:none;padding:8px}
+    #wc-logs,#wc-storage,#wc-network{flex:1;overflow-y:auto}
+    #wc-storage,#wc-network{display:none;padding:8px}
     #wc[data-p=storage] #wc-logs,#wc[data-p=storage] #wc-input{display:none}
     #wc[data-p=storage] #wc-storage{display:block}
+    #wc[data-p=network] #wc-logs,#wc[data-p=network] #wc-input{display:none}
+    #wc[data-p=network] #wc-network{display:block}
+    #wc[data-p=network] #wc-net-filters{display:flex}
+    #wc-net-filters{display:none;gap:2px;padding:4px 8px;background:#141414;border-bottom:1px solid #2a2a2a}
+    #wc-net-filters button{background:0;color:#888;border:none;padding:3px 8px;cursor:pointer;font:10px inherit;transition:.15s}
+    #wc-net-filters button:hover{background:rgba(255,255,255,.08);color:#ccc}
+    #wc-net-filters button.on{background:rgba(58,126,255,.2);color:#6cb2ff}
+    .req{padding:6px 12px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:12px;cursor:pointer}
+    .req:hover{background:rgba(255,255,255,.02)}
+    .req-status{min-width:32px;text-align:center;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:500}
+    .req-2xx{background:rgba(80,200,120,.2);color:#5c6}
+    .req-3xx{background:rgba(100,150,255,.2);color:#6af}
+    .req-4xx{background:rgba(255,180,0,.2);color:#fa0}
+    .req-5xx{background:rgba(255,85,85,.2);color:#f88}
+    .req-err{background:rgba(255,85,85,.3);color:#f88}
+    .req-method{color:#c792ea;min-width:36px;font-size:10px}
+    .req-url{flex:1;color:#e8e8e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .req-type{color:#666;font-size:10px;min-width:50px}
+    .req-time{color:#666;font-size:10px;min-width:50px;text-align:right}
+    .req-size{color:#666;font-size:10px;min-width:50px;text-align:right}
     .log{padding:4px 12px;border-bottom:1px solid #1a1a1a;white-space:pre-wrap;word-break:break-all;line-height:1.4;display:flex}
     .log:hover{background:rgba(255,255,255,.02)}
     .log-debug{color:#888}
@@ -75,6 +97,7 @@
     <div id="wc-resize"></div>
     <div id="wc-bar">
       <button data-p="console" class="on">Console</button>
+      <button data-p="network">Network</button>
       <button data-p="storage">Storage</button>
       <span class="spacer"></span>
       <button id="wc-clear" class="icon" title="Clear">🗑</button>
@@ -89,8 +112,18 @@
       <button data-f="log">Log <span class="cnt" id="c-log">0</span></button>
       <button data-f="debug">Debug <span class="cnt" id="c-debug">0</span></button>
     </div>
+    <div id="wc-net-filters">
+      <button data-nf="all" class="on">All</button>
+      <button data-nf="fetch">Fetch/XHR</button>
+      <button data-nf="script">JS</button>
+      <button data-nf="css">CSS</button>
+      <button data-nf="img">Img</button>
+      <button data-nf="font">Font</button>
+      <button data-nf="other">Other</button>
+    </div>
     <div id="wc-content">
       <div id="wc-logs"></div>
+      <div id="wc-network"></div>
       <div id="wc-storage"></div>
     </div>
     <div id="wc-input">
@@ -115,6 +148,7 @@
   const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
   const logsEl = $('wc-logs');
   const storageEl = $('wc-storage');
+  const networkEl = $('wc-network');
   const inputEl = el.querySelector('#wc-input input');
 
   const icons = { debug: '·', log: '▸', info: 'ⓘ', warn: '⚠', error: '✕' };
@@ -239,6 +273,153 @@
     storageEl.innerHTML = cookieSection + section('localStorage', localStorage) + section('sessionStorage', sessionStorage);
   }
 
+  // Network rendering
+  function getReqType(r) {
+    if (r.type === 'fetch' || r.type === 'xmlhttprequest') return 'fetch';
+    if (r.type === 'script') return 'script';
+    if (r.type === 'css' || r.type === 'link') return 'css';
+    if (r.type === 'img' || r.type === 'image') return 'img';
+    if (r.type === 'font') return 'font';
+    return 'other';
+  }
+
+  function getStatusClass(s) {
+    if (!s || s === 0) return 'req-err';
+    if (s >= 200 && s < 300) return 'req-2xx';
+    if (s >= 300 && s < 400) return 'req-3xx';
+    if (s >= 400 && s < 500) return 'req-4xx';
+    return 'req-5xx';
+  }
+
+  function formatSize(bytes) {
+    if (!bytes) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function formatTime(ms) {
+    if (!ms && ms !== 0) return '-';
+    if (ms < 1000) return Math.round(ms) + ' ms';
+    return (ms / 1000).toFixed(2) + ' s';
+  }
+
+  function renderNetwork() {
+    const list = netFilter === 'all' ? requests : requests.filter(r => getReqType(r) === netFilter);
+    networkEl.innerHTML = list.length === 0
+      ? '<div class="si-empty" style="padding:12px">(no requests)</div>'
+      : list.map(r => {
+        const url = r.url.length > 80 ? '...' + r.url.slice(-77) : r.url;
+        const statusClass = getStatusClass(r.status);
+        return `
+          <div class="req">
+            <span class="req-status ${statusClass}">${r.status || 'ERR'}</span>
+            <span class="req-method">${r.method || 'GET'}</span>
+            <span class="req-url" title="${esc(r.url)}">${esc(url)}</span>
+            <span class="req-type">${r.type || '-'}</span>
+            <span class="req-size">${formatSize(r.size)}</span>
+            <span class="req-time">${formatTime(r.duration)}</span>
+          </div>
+        `;
+      }).join('');
+  }
+
+  // Network interceptors
+  // 1. PerformanceObserver for all resources
+  if (window.PerformanceObserver) {
+    // Get existing resources
+    performance.getEntriesByType('resource').forEach(entry => {
+      requests.push({
+        url: entry.name,
+        type: entry.initiatorType,
+        duration: entry.duration,
+        size: entry.transferSize || entry.encodedBodySize,
+        status: 200, // Assume success for already loaded resources
+        method: 'GET'
+      });
+    });
+
+    // Watch for new resources
+    const observer = new PerformanceObserver(list => {
+      list.getEntries().forEach(entry => {
+        // Check if we already have this request from fetch/XHR override
+        const existing = requests.find(r => r.url === entry.name && r.type === 'fetch');
+        if (existing) {
+          existing.duration = entry.duration;
+          existing.size = entry.transferSize || entry.encodedBodySize || existing.size;
+        } else {
+          requests.push({
+            url: entry.name,
+            type: entry.initiatorType,
+            duration: entry.duration,
+            size: entry.transferSize || entry.encodedBodySize,
+            status: 200,
+            method: 'GET'
+          });
+        }
+      });
+      if (activePanel === 'network') renderNetwork();
+    });
+    observer.observe({ entryTypes: ['resource'] });
+  }
+
+  // 2. Fetch override for details
+  const origFetch = window.fetch;
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    const method = init.method || 'GET';
+    const startTime = performance.now();
+    const req = { url, method, type: 'fetch', status: 0, duration: 0, size: 0 };
+    requests.push(req);
+
+    try {
+      const response = await origFetch(input, init);
+      req.status = response.status;
+      req.duration = performance.now() - startTime;
+      // Clone to read size without consuming body
+      const clone = response.clone();
+      clone.blob().then(blob => {
+        req.size = blob.size;
+        if (activePanel === 'network') renderNetwork();
+      }).catch(() => {});
+      if (activePanel === 'network') renderNetwork();
+      return response;
+    } catch (err) {
+      req.status = 0;
+      req.duration = performance.now() - startTime;
+      if (activePanel === 'network') renderNetwork();
+      throw err;
+    }
+  };
+
+  // 3. XMLHttpRequest override
+  const origXHROpen = XMLHttpRequest.prototype.open;
+  const origXHRSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this._wcMethod = method;
+    this._wcUrl = url;
+    return origXHROpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function() {
+    const startTime = performance.now();
+    const req = { url: this._wcUrl, method: this._wcMethod, type: 'xmlhttprequest', status: 0, duration: 0, size: 0 };
+    requests.push(req);
+
+    this.addEventListener('load', () => {
+      req.status = this.status;
+      req.duration = performance.now() - startTime;
+      req.size = this.response ? (this.response.byteLength || this.response.length || this.responseText?.length || 0) : 0;
+      if (activePanel === 'network') renderNetwork();
+    });
+    this.addEventListener('error', () => {
+      req.status = 0;
+      req.duration = performance.now() - startTime;
+      if (activePanel === 'network') renderNetwork();
+    });
+
+    return origXHRSend.apply(this, arguments);
+  };
+
   // Storage click handler
   storageEl.addEventListener('click', e => {
     const item = e.target.closest('.si');
@@ -304,6 +485,7 @@
     activePanel = btn.dataset.p;
     el.dataset.p = activePanel;
     if (activePanel === 'storage') renderStorage();
+    if (activePanel === 'network') renderNetwork();
     // Restore if collapsed
     if (el.classList.contains('collapsed')) {
       el.classList.remove('collapsed');
@@ -323,10 +505,20 @@
     render();
   });
 
+  $$('#wc-net-filters [data-nf]').forEach(btn => btn.onclick = () => {
+    $$('#wc-net-filters [data-nf]').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    netFilter = btn.dataset.nf;
+    renderNetwork();
+  });
+
   $('wc-clear').onclick = () => {
     if (activePanel === 'console') {
       logs = [];
       render();
+    } else if (activePanel === 'network') {
+      requests = [];
+      renderNetwork();
     } else if (confirm('Clear all cookies, localStorage and sessionStorage?')) {
       // Clear cookies
       document.cookie.split(';').forEach(c => {

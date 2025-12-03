@@ -105,6 +105,21 @@
       console.error('Error after 3 seconds');
     }, 3000);
 
+    // Demo network requests
+    fetch('https://jsonplaceholder.typicode.com/posts/1')
+      .then(r => r.json())
+      .then(data => console.log('Fetched post:', data.title));
+
+    fetch('https://jsonplaceholder.typicode.com/users/1')
+      .then(r => r.json())
+      .then(data => console.log('Fetched user:', data.name));
+
+    // XHR request
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://jsonplaceholder.typicode.com/todos/1');
+    xhr.onload = () => console.log('XHR loaded:', JSON.parse(xhr.responseText).title);
+    xhr.send();
+
     // Button functions
     function throwError() {
       throw new Error('This is an uncaught error!');
