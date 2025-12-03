@@ -64,6 +64,11 @@
   <script src="wc.js"></script>
 
   <script>
+    // Add some demo cookies
+    document.cookie = 'session_id=abc123xyz';
+    document.cookie = 'user_prefs=' + encodeURIComponent(JSON.stringify({ theme: 'dark', lang: 'en' }));
+    document.cookie = 'visited=true';
+
     // Add some demo storage data
     localStorage.setItem('user', JSON.stringify({
       name: 'John',

@@ -184,6 +184,14 @@
     return esc(String(v));
   }
 
+  function parseCookies() {
+    if (!document.cookie) return [];
+    return document.cookie.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=');
+      return { key: k, value: decodeURIComponent(v.join('=')) };
+    });
+  }
+
   function renderStorage() {
     const section = (name, store) => {
       let items = '';
@@ -206,7 +214,29 @@
       }
       return `<div class="sh"><div class="sh-head">▼ ${name} (${store.length})</div><div class="sh-items">${items}</div></div>`;
     };
-    storageEl.innerHTML = section('localStorage', localStorage) + section('sessionStorage', sessionStorage);
+
+    const cookies = parseCookies();
+    let cookieItems = '';
+    if (cookies.length === 0) {
+      cookieItems = '<div class="si-empty">(empty)</div>';
+    } else {
+      cookies.forEach(c => {
+        let v = c.value;
+        try { v = JSON.parse(v); } catch(e) {}
+        const exp = typeof v === 'object' && v !== null;
+        cookieItems += `
+          <div class="si">
+            <span class="si-tog">${exp ? '▶' : ' '}</span>
+            <span class="si-key">${esc(c.key)}:</span>
+            <span class="si-pre">${preview(v)}</span>
+            ${exp ? `<div class="si-ch" style="display:none">${renderVal(v)}</div>` : ''}
+          </div>
+        `;
+      });
+    }
+    const cookieSection = `<div class="sh"><div class="sh-head">▼ Cookies (${cookies.length})</div><div class="sh-items">${cookieItems}</div></div>`;
+
+    storageEl.innerHTML = cookieSection + section('localStorage', localStorage) + section('sessionStorage', sessionStorage);
   }
 
   // Storage click handler
@@ -297,7 +327,12 @@
     if (activePanel === 'console') {
       logs = [];
       render();
-    } else if (confirm('Clear all localStorage and sessionStorage?')) {
+    } else if (confirm('Clear all cookies, localStorage and sessionStorage?')) {
+      // Clear cookies
+      document.cookie.split(';').forEach(c => {
+        const name = c.split('=')[0].trim();
+        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+      });
       localStorage.clear();
       sessionStorage.clear();
       renderStorage();
