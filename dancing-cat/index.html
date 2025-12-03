@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#e0d0c4">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="author" content="Rick van der Wolk">
+    <title>Dancing cat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            background: #e0d0c4;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+        }
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: monospace;
+            overflow: hidden;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        #visualizer { background: #e0d0c4; cursor: pointer; }
+        .hint { color: #6a5a4a; font-size: 12px; position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body>
+    <canvas id="visualizer"></canvas>
+    <div class="hint">klik om te starten</div>
+
+    <script>
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        let audioContext, analyser, dataArray, source, stream;
+        let isRunning = false;
+        let animationId;
+        let time = 0;
+
+        let lastFrameTime = 0;
+        let deltaTime = 0;
+
+        // Beat detection
+        let energyHistory = [];
+        let bandHistories = [[], [], []];
+        const HISTORY_SIZE = 30;
+        let lastBeatTime = 0;
+        const BEAT_COOLDOWN = 100;
+        let peakEnergy = 0;
+        let peakDecay = 0;
+        let lastEnergy = 0;
+        let beatCount = 0;
+
+        // Smooth values
+        let smooth = { energy: 0, low: 0, mid: 0, high: 0 };
+
+        // Activity
+        let activity = 0;
+        let isAwake = false;
+
+        // Cat state
+        let cat = {
+            y: 0,
+            squish: 0,
+            rotation: 0,
+            headTilt: 0,
+            headY: 0,
+            tailWag: 0,
+            tailUp: 0,
+            earL: 0,
+            earR: 0,
+            eyeOpen: 0,
+            blinkTimer: 100,
+            blush: 0,
+            pawL: 0,
+            pawR: 0,
+            pawLRaise: 0,
+            pawRRaise: 0,
+            phase: 0,
+            jump: 0,
+            spin: 0,
+            isSpinning: false,
+            surprise: 0,
+            happy: 0,
+            currentMove: 'bounce',
+            moveTimer: 0,
+            asleep: false,
+            sleepiness: 0,
+            zzz: [],
+            lastZzz: 0,
+            breath: 0,
+            lookX: 0,
+            lookY: 0,
+            beatNod: 0,
+            beatBounce: 0
+        };
+
+        // Meer moves met pootjes, snellere wisseling
+        const ALL_MOVES = [
+            'bounce', 'bounce',           // basis bounce
+            'wave', 'wave', 'wave',       // 1 pootje zwaaien
+            'both', 'both', 'both',       // 2 pootjes
+            'disco', 'disco', 'disco',    // afwisselend L/R
+            'headbob',                    // alleen hoofd
+            'sway',                       // wiegen
+            'wiggle',                     // schudden
+            'fistpump', 'fistpump'        // fist pump
+        ];
+
+        let floaties = [];
+        let lastFloatyTime = 0;
+
+        const FFT_SIZE = 512;
+        const SMOOTHING = 0.6;
+
+        canvas.addEventListener('click', async () => {
+            if (!isRunning) await start();
+        });
+
+        async function start() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = FFT_SIZE;
+                analyser.smoothingTimeConstant = SMOOTHING;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                isRunning = true;
+
+                document.querySelector('.hint').style.display = 'none';
+                time = 0;
+                beatCount = 0;
+                floaties = [];
+                cat.zzz = [];
+                energyHistory = [];
+                bandHistories = [[], [], []];
+                peakEnergy = 0;
+                lastFrameTime = performance.now();
+                draw();
+            } catch (err) {
+                console.error('Mic error:', err);
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+            if (source) source.disconnect();
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            if (audioContext) audioContext.close();
+            ctx.fillStyle = '#e0d0c4';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function lerp(a, b, t) {
+            return a + (b - a) * Math.min(t * deltaTime * 60, 1);
+        }
+
+        function fastLerp(a, b, t) {
+            return a + (b - a) * Math.min(t * deltaTime * 60 * 1.5, 1);
+        }
+
+        function detectBeat() {
+            const now = performance.now();
+            const low = getAverage(0, 10);
+            const mid = getAverage(10, 80);
+            const high = getAverage(80, 180);
+            const energy = low * 0.2 + mid * 0.5 + high * 0.3;
+
+            const energyChange = Math.abs(energy - lastEnergy);
+            const suddenSound = energyChange > 40 && energy > 30;
+            lastEnergy = energy;
+
+            energyHistory.push(energy);
+            bandHistories[0].push(low);
+            bandHistories[1].push(mid);
+            bandHistories[2].push(high);
+
+            if (energyHistory.length > HISTORY_SIZE) {
+                energyHistory.shift();
+                bandHistories.forEach(h => h.shift());
+            }
+
+            if (energy > peakEnergy) {
+                peakEnergy = energy;
+                peakDecay = 0;
+            } else {
+                peakDecay++;
+                if (peakDecay > 30) peakEnergy *= 0.995;
+            }
+
+            let isBeat = false;
+            let intensity = 0;
+
+            if (energyHistory.length >= 10 && now - lastBeatTime >= BEAT_COOLDOWN) {
+                const avg = energyHistory.reduce((a, b) => a + b) / energyHistory.length;
+                const variance = energyHistory.reduce((s, e) => s + (e - avg) ** 2, 0) / energyHistory.length;
+                const threshold = Math.max(avg + Math.sqrt(variance) * 1.2, 25);
+
+                const onset = [0, 1, 2].some(i => {
+                    const h = bandHistories[i];
+                    if (h.length < 5) return false;
+                    const recent = h.slice(-3).reduce((a, b) => a + b) / 3;
+                    const older = h.slice(-8, -3).reduce((a, b) => a + b) / 5;
+                    return recent > older * 1.3 && recent > 20;
+                });
+
+                isBeat = energy > threshold && onset;
+                if (isBeat) {
+                    lastBeatTime = now;
+                    beatCount++;
+                }
+                intensity = peakEnergy > 0 ? Math.min(energy / peakEnergy, 1) : 0;
+            }
+
+            return { isBeat, intensity, energy, low, mid, high, suddenSound };
+        }
+
+        function pickMove() {
+            // Kies een andere move dan huidige
+            let newMove;
+            do {
+                newMove = ALL_MOVES[Math.floor(Math.random() * ALL_MOVES.length)];
+            } while (newMove === cat.currentMove && Math.random() > 0.3);
+
+            // Kortere move duur voor meer afwisseling
+            cat.moveTimer = 1.5 + Math.random() * 2;
+            return newMove;
+        }
+
+        function spawnFloaty(x, y, type) {
+            if (time - lastFloatyTime < 1) return;
+            lastFloatyTime = time;
+
+            floaties.push({
+                x: x + (Math.random() - 0.5) * 60,
+                y,
+                vy: -1.5 - Math.random() * 2,
+                vx: (Math.random() - 0.5) * 1.5,
+                size: 12 + Math.random() * 12,
+                alpha: 1,
+                rot: Math.random() * 0.4 - 0.2,
+                type
+            });
+        }
+
+        function updateFloaties() {
+            for (let i = floaties.length - 1; i >= 0; i--) {
+                const f = floaties[i];
+                f.x += f.vx * deltaTime * 60;
+                f.y += f.vy * deltaTime * 60;
+                f.vy *= 0.99;
+                f.alpha -= 0.015 * deltaTime * 60;
+                f.rot += 0.015 * deltaTime * 60;
+                if (f.alpha <= 0) floaties.splice(i, 1);
+            }
+        }
+
+        function drawFloaties() {
+            floaties.forEach(f => {
+                ctx.save();
+                ctx.translate(f.x, f.y);
+                ctx.rotate(f.rot);
+                ctx.globalAlpha = f.alpha * 0.6;
+
+                if (f.type === 'heart') {
+                    ctx.fillStyle = '#ff7eb3';
+                    drawHeart(0, 0, f.size);
+                } else if (f.type === 'star') {
+                    ctx.fillStyle = '#ffd700';
+                    drawStar(0, 0, f.size);
+                } else {
+                    ctx.fillStyle = '#b088f9';
+                    drawNote(0, 0, f.size);
+                }
+
+                ctx.restore();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function drawHeart(x, y, s) {
+            ctx.beginPath();
+            ctx.moveTo(x, y + s * 0.3);
+            ctx.bezierCurveTo(x - s/2, y - s * 0.3, x - s, y + s * 0.2, x, y + s);
+            ctx.bezierCurveTo(x + s, y + s * 0.2, x + s/2, y - s * 0.3, x, y + s * 0.3);
+            ctx.fill();
+        }
+
+        function drawStar(x, y, s) {
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const angle = (i * 4 * Math.PI / 5) - Math.PI / 2;
+                const px = x + Math.cos(angle) * s * 0.5;
+                const py = y + Math.sin(angle) * s * 0.5;
+                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                const innerAngle = angle + Math.PI / 5;
+                ctx.lineTo(x + Math.cos(innerAngle) * s * 0.2, y + Math.sin(innerAngle) * s * 0.2);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawNote(x, y, s) {
+            ctx.beginPath();
+            ctx.ellipse(x, y + s * 0.3, s * 0.35, s * 0.25, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillRect(x + s * 0.2, y - s * 0.5, s * 0.1, s * 0.8);
+        }
+
+        function updateZzz() {
+            if (cat.asleep && time - cat.lastZzz > 1.3) {
+                cat.zzz.push({
+                    x: 50, y: -50,
+                    alpha: 1,
+                    size: 14 + Math.random() * 8
+                });
+                cat.lastZzz = time;
+            }
+            for (let i = cat.zzz.length - 1; i >= 0; i--) {
+                const z = cat.zzz[i];
+                z.y -= 0.5 * deltaTime * 60;
+                z.x += Math.sin(time * 2 + i) * 0.3;
+                z.alpha -= 0.008 * deltaTime * 60;
+                if (z.alpha <= 0) cat.zzz.splice(i, 1);
+            }
+        }
+
+        function draw() {
+            if (!isRunning) return;
+            animationId = requestAnimationFrame(draw);
+
+            const now = performance.now();
+            deltaTime = Math.min((now - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = now;
+            time += deltaTime;
+
+            const w = canvas.width;
+            const h = canvas.height;
+
+            analyser.getByteFrequencyData(dataArray);
+            const beat = detectBeat();
+
+            smooth.energy = lerp(smooth.energy, beat.energy / 255, 0.15);
+            smooth.low = lerp(smooth.low, beat.low / 255, 0.18);
+            smooth.mid = lerp(smooth.mid, beat.mid / 255, 0.18);
+            smooth.high = lerp(smooth.high, beat.high / 255, 0.18);
+
+            const wasAwake = isAwake;
+            const targetActivity = smooth.energy > 0.08 ? Math.min(smooth.energy * 2.5, 1) : 0;
+            activity = lerp(activity, targetActivity, 0.06);
+            isAwake = activity > 0.1;
+
+            if (!wasAwake && isAwake && cat.asleep) {
+                cat.surprise = 1;
+                cat.asleep = false;
+                cat.currentMove = 'bounce';
+                cat.moveTimer = 2;
+            }
+
+            updateCat(beat, w, h);
+            updateFloaties();
+            updateZzz();
+
+            const bgL = 88 - activity * 5;
+            ctx.fillStyle = `hsl(28, 35%, ${bgL}%)`;
+            ctx.fillRect(0, 0, w, h);
+
+            if (isAwake) {
+                const glow = ctx.createRadialGradient(w/2, h * 0.5, 0, w/2, h * 0.5, 200 + activity * 100);
+                glow.addColorStop(0, `rgba(255, 220, 200, ${activity * 0.25})`);
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.fillRect(0, 0, w, h);
+            }
+
+            const shadowScale = 1 + cat.jump * 0.012;
+            ctx.fillStyle = `rgba(80,60,40,${0.12 - cat.jump * 0.002})`;
+            ctx.beginPath();
+            ctx.ellipse(w/2, h * 0.72, 65 / shadowScale, 11, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            drawFloaties();
+            drawCat(w, h);
+
+            if (beat.isBeat && isAwake) {
+                ctx.fillStyle = `rgba(255,255,255,${0.06 * beat.intensity})`;
+                ctx.fillRect(0, 0, w, h);
+            }
+        }
+
+        function updateCat(beat, w, h) {
+            const dt = deltaTime * 60;
+
+            cat.breath = Math.sin(time * (isAwake ? 2 : 1)) * (isAwake ? 2 : 4);
+
+            cat.blinkTimer += deltaTime;
+            if (cat.blinkTimer > 2.5 + Math.random() * 2) cat.blinkTimer = 0;
+
+            cat.beatNod = fastLerp(cat.beatNod, 0, 0.25);
+            cat.beatBounce = fastLerp(cat.beatBounce, 0, 0.22);
+
+            if (cat.isSpinning) {
+                cat.spin += dt * 0.2;
+                if (cat.spin >= Math.PI * 2) {
+                    cat.spin = 0;
+                    cat.isSpinning = false;
+                    cat.happy = 1;
+                }
+            }
+
+            if (isAwake) {
+                cat.sleepiness = lerp(cat.sleepiness, 0, 0.05);
+                cat.phase += dt * (0.05 + smooth.energy * 0.08);
+
+                // Move timer - snellere wisseling
+                cat.moveTimer -= deltaTime;
+                if (cat.moveTimer <= 0) {
+                    cat.currentMove = pickMove();
+                }
+
+                // Bij plotseling geluid, wissel soms van move
+                if (beat.suddenSound && Math.random() < 0.5) {
+                    cat.currentMove = pickMove();
+                    cat.surprise = Math.min(cat.surprise + 0.5, 1);
+                }
+
+                const intensity = Math.min(smooth.energy * 2, 1);
+
+                if (beat.isBeat) {
+                    cat.beatNod = 8 + beat.intensity * 12;
+                    cat.beatBounce = 5 + beat.intensity * 10;
+                }
+
+                let targetY = cat.breath + cat.beatBounce;
+                let targetSquish = 0;
+                let targetRotation = 0;
+                let targetHeadTilt = 0;
+                let targetHeadY = cat.beatNod;
+                let targetPawL = 0;
+                let targetPawR = 0;
+                let targetPawLRaise = 0;
+                let targetPawRRaise = 0;
+
+                switch (cat.currentMove) {
+                    case 'bounce':
+                        const bouncePhase = cat.phase * 3;
+                        targetY += Math.abs(Math.sin(bouncePhase)) * (10 + intensity * 18);
+                        targetSquish = Math.sin(bouncePhase) * 0.1;
+                        targetHeadY += Math.sin(bouncePhase) * 5;
+                        targetPawL = Math.abs(Math.sin(bouncePhase)) * 0.12;
+                        targetPawR = Math.abs(Math.sin(bouncePhase + Math.PI * 0.3)) * 0.12;
+                        targetRotation = Math.sin(cat.phase * 1.5) * 0.04;
+                        break;
+
+                    case 'headbob':
+                        targetHeadY += Math.sin(cat.phase * 3.5) * (5 + smooth.mid * 12);
+                        targetHeadTilt = Math.sin(cat.phase * 1.8) * 0.1;
+                        if (Math.sin(time * 0.4) > 0.7) {
+                            targetHeadTilt += 0.12;
+                        }
+                        break;
+
+                    case 'wave':
+                        targetY += 5 + Math.sin(cat.phase * 2.5) * 8;
+                        targetHeadTilt = 0.15;
+                        targetPawLRaise = 1;
+                        targetPawL = 0.5 + Math.sin(cat.phase * 4) * 0.25;
+                        targetHeadY += Math.sin(cat.phase * 2.5) * 4;
+                        break;
+
+                    case 'both':
+                        targetY += Math.abs(Math.sin(cat.phase * 3)) * (12 + intensity * 18);
+                        targetPawLRaise = 1;
+                        targetPawRRaise = 1;
+                        targetPawL = 0.5 + Math.sin(cat.phase * 3.5) * 0.2;
+                        targetPawR = 0.5 + Math.sin(cat.phase * 3.5 + Math.PI) * 0.2;
+                        targetSquish = Math.sin(cat.phase * 3) * 0.08;
+                        break;
+
+                    case 'disco':
+                        targetY += Math.abs(Math.sin(cat.phase * 2.5)) * 10;
+                        const discoSide = Math.sin(cat.phase * 1.5) > 0 ? 1 : -1;
+                        if (discoSide > 0) {
+                            targetPawRRaise = 1;
+                            targetPawR = 0.75;
+                            targetRotation = 0.08;
+                        } else {
+                            targetPawLRaise = 1;
+                            targetPawL = 0.75;
+                            targetRotation = -0.08;
+                        }
+                        targetHeadTilt = discoSide * 0.12;
+                        break;
+
+                    case 'sway':
+                        targetY += 5;
+                        targetRotation = Math.sin(cat.phase * 2) * 0.12;
+                        targetHeadTilt = Math.sin(cat.phase * 2.5) * 0.15;
+                        targetHeadY += Math.sin(cat.phase * 2) * 6;
+                        break;
+
+                    case 'wiggle':
+                        targetY += 6 + smooth.low * 10;
+                        targetRotation = Math.sin(cat.phase * 5) * 0.12;
+                        targetSquish = Math.sin(cat.phase * 5 + 0.5) * 0.1;
+                        targetHeadTilt = Math.sin(cat.phase * 2.5) * 0.1;
+                        break;
+
+                    case 'fistpump':
+                        targetY += Math.abs(Math.sin(cat.phase * 3)) * (10 + intensity * 15);
+                        const pumpSide = Math.sin(cat.phase * 1.2) > 0;
+                        if (pumpSide) {
+                            targetPawRRaise = 1;
+                            targetPawR = 0.6 + Math.abs(Math.sin(cat.phase * 3)) * 0.4;
+                            targetRotation = 0.06;
+                            targetHeadTilt = 0.1;
+                        } else {
+                            targetPawLRaise = 1;
+                            targetPawL = 0.6 + Math.abs(Math.sin(cat.phase * 3)) * 0.4;
+                            targetRotation = -0.06;
+                            targetHeadTilt = -0.1;
+                        }
+                        targetSquish = Math.sin(cat.phase * 3) * 0.08;
+                        targetHeadY += Math.abs(Math.sin(cat.phase * 3)) * 6;
+                        break;
+                }
+
+                cat.surprise = fastLerp(cat.surprise, 0, 0.08);
+
+                cat.y = fastLerp(cat.y, targetY, 0.18);
+                cat.squish = fastLerp(cat.squish, targetSquish, 0.2);
+                cat.rotation = fastLerp(cat.rotation, targetRotation, 0.15);
+                cat.headTilt = fastLerp(cat.headTilt, targetHeadTilt, 0.15);
+                cat.headY = fastLerp(cat.headY, targetHeadY, 0.22);
+
+                cat.pawL = fastLerp(cat.pawL, targetPawL, 0.15);
+                cat.pawR = fastLerp(cat.pawR, targetPawR, 0.15);
+                cat.pawLRaise = fastLerp(cat.pawLRaise, targetPawLRaise, 0.18);
+                cat.pawRRaise = fastLerp(cat.pawRRaise, targetPawRRaise, 0.18);
+
+                cat.tailWag = Math.sin(cat.phase * 3.5) * (0.3 + intensity * 0.4 + cat.happy * 0.3);
+                cat.tailUp = lerp(cat.tailUp, 0.15 + intensity * 0.3 + cat.happy * 0.25, 0.08);
+
+                const earPerk = smooth.high * 0.15 + cat.surprise * 0.2;
+                cat.earL = fastLerp(cat.earL, earPerk, 0.12);
+                cat.earR = fastLerp(cat.earR, earPerk, 0.12);
+
+                const targetEyeOpen = 1 + cat.surprise * 0.35 + cat.happy * 0.1;
+                cat.eyeOpen = fastLerp(cat.eyeOpen, targetEyeOpen, 0.15);
+
+                cat.blush = lerp(cat.blush, 0.2 + intensity * 0.25 + cat.happy * 0.2, 0.06);
+
+                cat.happy = lerp(cat.happy, 0, 0.025);
+
+                if (beat.isBeat) {
+                    if (beat.intensity > 0.45 && cat.jump < 5) {
+                        cat.jump = 12 + beat.intensity * 18;
+                    }
+
+                    if (beat.intensity > 0.6 && beatCount % 14 === 0 && !cat.isSpinning) {
+                        cat.isSpinning = true;
+                        cat.spin = 0;
+                    }
+
+                    if (beat.intensity > 0.55 && Math.random() < 0.12) {
+                        const types = ['heart', 'star', 'note'];
+                        spawnFloaty(w/2, h * 0.35, types[Math.floor(Math.random() * types.length)]);
+                    }
+                }
+
+                cat.jump = fastLerp(cat.jump, 0, 0.12);
+
+                cat.lookX = lerp(cat.lookX, Math.sin(time * 0.7) * 3, 0.03);
+                cat.lookY = lerp(cat.lookY, Math.cos(time * 0.5) * 2, 0.03);
+
+            } else {
+                // === SLEEPING ===
+                cat.sleepiness = lerp(cat.sleepiness, 1, 0.01);
+
+                if (cat.sleepiness > 0.8) {
+                    cat.asleep = true;
+                }
+
+                cat.y = lerp(cat.y, cat.breath, 0.04);
+                cat.squish = lerp(cat.squish, 0.02, 0.02);
+                cat.rotation = lerp(cat.rotation, 0, 0.02);
+                cat.headTilt = lerp(cat.headTilt, 0.05, 0.02);
+                cat.headY = lerp(cat.headY, 5, 0.02);
+
+                cat.tailWag = lerp(cat.tailWag, Math.sin(time * 0.5) * 0.1, 0.02);
+                cat.tailUp = lerp(cat.tailUp, -0.15, 0.02);
+
+                cat.earL = lerp(cat.earL, -0.05, 0.02);
+                cat.earR = lerp(cat.earR, -0.05, 0.02);
+
+                cat.eyeOpen = lerp(cat.eyeOpen, 0, 0.04);
+                cat.blush = lerp(cat.blush, 0.15, 0.02);
+
+                cat.pawL = lerp(cat.pawL, 0, 0.04);
+                cat.pawR = lerp(cat.pawR, 0, 0.04);
+                cat.pawLRaise = lerp(cat.pawLRaise, 0, 0.04);
+                cat.pawRRaise = lerp(cat.pawRRaise, 0, 0.04);
+
+                cat.jump = lerp(cat.jump, 0, 0.06);
+                cat.surprise = lerp(cat.surprise, 0, 0.05);
+                cat.happy = lerp(cat.happy, 0, 0.03);
+                cat.isSpinning = false;
+                cat.spin = lerp(cat.spin, 0, 0.05);
+
+                cat.lookX = lerp(cat.lookX, 0, 0.02);
+                cat.lookY = lerp(cat.lookY, 5, 0.02);
+            }
+        }
+
+        function drawCat(w, h) {
+            const x = w / 2;
+            const y = h * 0.5 - cat.y - cat.jump;
+            const s = Math.min(w, h) / 380;
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(s, s);
+            ctx.rotate(cat.spin + cat.rotation);
+            ctx.scale(1 + cat.squish * 0.3, 1 - cat.squish * 0.2);
+
+            const fur = '#ffeee6';
+            const furDark = '#ffe0d4';
+            const furLight = '#fff8f5';
+            const pink = '#ffc0cb';
+            const darkPink = '#ffaabb';
+
+            // === TAIL ===
+            ctx.save();
+            ctx.translate(-40, 42);
+            ctx.rotate(-0.3 - cat.tailUp * 0.5 + cat.tailWag);
+
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = fur;
+            ctx.lineWidth = 20;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(
+                -20 + cat.tailWag * 12,
+                -40 - cat.tailUp * 20,
+                -10,
+                -75 - cat.tailUp * 15
+            );
+            ctx.stroke();
+
+            ctx.strokeStyle = furDark;
+            ctx.lineWidth = 16;
+            ctx.beginPath();
+            ctx.moveTo(-14, -55 - cat.tailUp * 15);
+            ctx.lineTo(-10, -75 - cat.tailUp * 15);
+            ctx.stroke();
+            ctx.restore();
+
+            // === BODY ===
+            ctx.fillStyle = fur;
+            ctx.beginPath();
+            ctx.ellipse(0, 35, 52, 45, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = furLight;
+            ctx.beginPath();
+            ctx.ellipse(0, 42, 35, 30, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = fur;
+            ctx.beginPath();
+            ctx.ellipse(-28, 72, 18, 10, -0.2, 0, Math.PI * 2);
+            ctx.ellipse(28, 72, 18, 10, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = pink;
+            ctx.beginPath();
+            ctx.ellipse(-28, 76, 8, 5, 0, 0, Math.PI * 2);
+            ctx.ellipse(28, 76, 8, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // === FRONT PAWS ===
+            const drawPaw = (side, motion, raised) => {
+                ctx.save();
+                ctx.translate(side * 30, 55);
+
+                if (raised > 0.5) {
+                    ctx.rotate(side * -raised * 1.1);
+                    ctx.translate(0, -raised * 32);
+
+                    ctx.fillStyle = fur;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 12, 16, 22, side * 0.1, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = pink;
+                    ctx.beginPath();
+                    ctx.ellipse(side * 5, 20, 10, 8, side * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = darkPink;
+                    for (let i = -1; i <= 1; i++) {
+                        ctx.beginPath();
+                        ctx.ellipse(side * 5 + i * 5, 14, 3.5, 4.5, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                } else {
+                    const bounce = motion * 8;
+                    ctx.translate(0, -bounce);
+
+                    ctx.fillStyle = fur;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 15, 16, 20, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            };
+
+            drawPaw(-1, cat.pawL, cat.pawLRaise);
+            drawPaw(1, cat.pawR, cat.pawRRaise);
+
+            // === HEAD ===
+            ctx.save();
+            ctx.translate(0, -cat.headY);
+            ctx.rotate(cat.headTilt);
+
+            ctx.fillStyle = fur;
+            ctx.beginPath();
+            ctx.arc(0, -18, 50, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = furLight;
+            ctx.beginPath();
+            ctx.ellipse(-36, 0, 16, 14, -0.2, 0, Math.PI * 2);
+            ctx.ellipse(36, 0, 16, 14, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // === EARS ===
+            const drawEar = (side, perk) => {
+                ctx.save();
+                ctx.translate(side * 35, -55);
+                ctx.rotate(side * 0.25 + perk * side * 0.15);
+
+                ctx.fillStyle = fur;
+                ctx.beginPath();
+                ctx.moveTo(-12, 10);
+                ctx.quadraticCurveTo(-14, -15, 0, -35);
+                ctx.quadraticCurveTo(14, -15, 12, 10);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = pink;
+                ctx.beginPath();
+                ctx.moveTo(-7, 5);
+                ctx.quadraticCurveTo(-8, -10, 0, -25);
+                ctx.quadraticCurveTo(8, -10, 7, 5);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore();
+            };
+
+            drawEar(-1, cat.earL);
+            drawEar(1, cat.earR);
+
+            // === FACE ===
+
+            ctx.fillStyle = `rgba(255, 180, 190, ${cat.blush * 0.6})`;
+            ctx.beginPath();
+            ctx.ellipse(-26, -3, 10, 6, 0, 0, Math.PI * 2);
+            ctx.ellipse(26, -3, 10, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const eyeY = -25;
+            const eyeX = 18;
+            const isBlinking = cat.blinkTimer < 0.1;
+
+            if (cat.eyeOpen > 0.15 && !isBlinking) {
+                const openness = Math.min(cat.eyeOpen, 1.35);
+                const surpriseWide = cat.surprise * 3;
+
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.ellipse(-eyeX, eyeY, 13 + surpriseWide * 0.4, (17 + surpriseWide) * openness, 0, 0, Math.PI * 2);
+                ctx.ellipse(eyeX, eyeY, 13 + surpriseWide * 0.4, (17 + surpriseWide) * openness, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#333';
+                const pupilSize = 6 + cat.surprise * 1.5;
+                ctx.beginPath();
+                ctx.ellipse(-eyeX + cat.lookX, eyeY + cat.lookY, pupilSize, pupilSize * 1.1, 0, 0, Math.PI * 2);
+                ctx.ellipse(eyeX + cat.lookX, eyeY + cat.lookY, pupilSize, pupilSize * 1.1, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(-eyeX - 2 + cat.lookX, eyeY - 4 + cat.lookY, 4, 0, Math.PI * 2);
+                ctx.arc(eyeX - 2 + cat.lookX, eyeY - 4 + cat.lookY, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(-eyeX + 3 + cat.lookX, eyeY + 3 + cat.lookY, 2, 0, Math.PI * 2);
+                ctx.arc(eyeX + 3 + cat.lookX, eyeY + 3 + cat.lookY, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+            } else {
+                ctx.strokeStyle = '#6a6058';
+                ctx.lineWidth = 2.5;
+                ctx.lineCap = 'round';
+
+                ctx.beginPath();
+                ctx.arc(-eyeX, eyeY + 2, 9, 0.15, Math.PI - 0.15);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(eyeX, eyeY + 2, 9, 0.15, Math.PI - 0.15);
+                ctx.stroke();
+
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-eyeX - 7, eyeY);
+                ctx.lineTo(-eyeX - 10, eyeY - 3);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(eyeX + 7, eyeY);
+                ctx.lineTo(eyeX + 10, eyeY - 3);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#ffb0b0';
+            ctx.beginPath();
+            ctx.moveTo(0, -4);
+            ctx.lineTo(-5, 4);
+            ctx.quadraticCurveTo(0, 7, 5, 4);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(-1.5, -1, 2, 1.5, -0.4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#cca0a0';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+
+            ctx.beginPath();
+            ctx.moveTo(0, 4);
+            ctx.lineTo(0, 9);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(0, 9);
+            ctx.quadraticCurveTo(-7, 15, -11, 12);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(0, 9);
+            ctx.quadraticCurveTo(7, 15, 11, 12);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ddc0b8';
+            ctx.lineWidth = 1.5;
+            const wWiggle = isAwake ? Math.sin(time * 5) * 2 : 0;
+
+            for (let side = -1; side <= 1; side += 2) {
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(side * 14, 3 + i * 5);
+                    ctx.lineTo(side * 45, -3 + i * 6 + wWiggle * side);
+                    ctx.stroke();
+                }
+            }
+
+            if (cat.asleep) {
+                ctx.fillStyle = '#8a7a6a';
+                ctx.font = 'bold 16px sans-serif';
+                cat.zzz.forEach(z => {
+                    ctx.save();
+                    ctx.globalAlpha = z.alpha;
+                    ctx.fillText('z', z.x, z.y);
+                    ctx.restore();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            ctx.restore();
+            ctx.restore();
+        }
+
+        function getAverage(start, end) {
+            let sum = 0;
+            const actualEnd = Math.min(end, dataArray.length);
+            for (let i = start; i < actualEnd; i++) sum += dataArray[i];
+            return sum / (actualEnd - start);
+        }
+    </script>
+</body>
+</html>
