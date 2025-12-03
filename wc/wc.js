@@ -47,19 +47,22 @@
     #wc-net-filters button{background:0;color:#888;border:none;padding:3px 8px;cursor:pointer;font:10px inherit;transition:.15s}
     #wc-net-filters button:hover{background:rgba(255,255,255,.08);color:#ccc}
     #wc-net-filters button.on{background:rgba(58,126,255,.2);color:#6cb2ff}
-    .req{padding:6px 12px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:12px;cursor:pointer}
+    .req{border-bottom:1px solid #1a1a1a;cursor:pointer}
     .req:hover{background:rgba(255,255,255,.02)}
+    .req-row{padding:6px 12px;display:flex;align-items:center;gap:8px}
     .req-status{min-width:32px;text-align:center;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:500}
     .req-2xx{background:rgba(80,200,120,.2);color:#5c6}
     .req-3xx{background:rgba(100,150,255,.2);color:#6af}
     .req-4xx{background:rgba(255,180,0,.2);color:#fa0}
     .req-5xx{background:rgba(255,85,85,.2);color:#f88}
     .req-err{background:rgba(255,85,85,.3);color:#f88}
-    .req-method{color:#c792ea;min-width:36px;font-size:10px}
+    .req-method{color:#c792ea;min-width:32px;font-size:10px}
     .req-url{flex:1;color:#e8e8e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .req-type{color:#666;font-size:10px;min-width:50px}
-    .req-time{color:#666;font-size:10px;min-width:50px;text-align:right}
-    .req-size{color:#666;font-size:10px;min-width:50px;text-align:right}
+    .req-meta{color:#666;font-size:10px;white-space:nowrap}
+    .req-detail{display:none;padding:8px 12px;background:#141414;border-top:1px solid #1a1a1a;word-break:break-all;color:#6cb2ff;font-size:10px}
+    .req.open .req-detail{display:block}
+    .req.open .req-url{white-space:normal;word-break:break-all}
+    @media(min-width:600px){.req-detail{display:none!important}.req-url{white-space:normal;word-break:break-all}}
     .log{padding:4px 12px;border-bottom:1px solid #1a1a1a;white-space:pre-wrap;word-break:break-all;line-height:1.4;display:flex}
     .log:hover{background:rgba(255,255,255,.02)}
     .log-debug{color:#888}
@@ -304,21 +307,39 @@
     return (ms / 1000).toFixed(2) + ' s';
   }
 
+  function getFileName(url) {
+    try {
+      const u = new URL(url);
+      const file = u.pathname.split('/').pop() || '/';
+      // If filename is short/just a number, show path
+      if (file.length < 5 || /^\d+$/.test(file)) {
+        const path = u.pathname;
+        return path.length > 50 ? '...' + path.slice(-47) : path;
+      }
+      return file.length > 40 ? file.slice(0, 37) + '...' : file;
+    } catch(e) {
+      return url.length > 40 ? url.slice(0, 37) + '...' : url;
+    }
+  }
+
+  const isDesktop = () => window.innerWidth >= 600;
+
   function renderNetwork() {
     const list = netFilter === 'all' ? requests : requests.filter(r => getReqType(r) === netFilter);
     networkEl.innerHTML = list.length === 0
       ? '<div class="si-empty" style="padding:12px">(no requests)</div>'
       : list.map(r => {
-        const url = r.url.length > 80 ? '...' + r.url.slice(-77) : r.url;
         const statusClass = getStatusClass(r.status);
+        const displayUrl = isDesktop() ? r.url : getFileName(r.url);
         return `
           <div class="req">
-            <span class="req-status ${statusClass}">${r.status || 'ERR'}</span>
-            <span class="req-method">${r.method || 'GET'}</span>
-            <span class="req-url" title="${esc(r.url)}">${esc(url)}</span>
-            <span class="req-type">${r.type || '-'}</span>
-            <span class="req-size">${formatSize(r.size)}</span>
-            <span class="req-time">${formatTime(r.duration)}</span>
+            <div class="req-row">
+              <span class="req-status ${statusClass}">${r.status || 'ERR'}</span>
+              <span class="req-method">${r.method || 'GET'}</span>
+              <span class="req-url">${esc(displayUrl)}</span>
+              <span class="req-meta">${r.type || '-'} · ${formatSize(r.size)} · ${formatTime(r.duration)}</span>
+            </div>
+            <div class="req-detail">${esc(r.url)}</div>
           </div>
         `;
       }).join('');
@@ -343,7 +364,7 @@
     const observer = new PerformanceObserver(list => {
       list.getEntries().forEach(entry => {
         // Check if we already have this request from fetch/XHR override
-        const existing = requests.find(r => r.url === entry.name && r.type === 'fetch');
+        const existing = requests.find(r => r.url === entry.name);
         if (existing) {
           existing.duration = entry.duration;
           existing.size = entry.transferSize || entry.encodedBodySize || existing.size;
@@ -369,8 +390,16 @@
     const url = typeof input === 'string' ? input : input.url;
     const method = init.method || 'GET';
     const startTime = performance.now();
-    const req = { url, method, type: 'fetch', status: 0, duration: 0, size: 0 };
-    requests.push(req);
+    // Check if already tracked by PerformanceObserver
+    let req = requests.find(r => r.url === url && !r._fromFetch);
+    if (req) {
+      req._fromFetch = true;
+      req.method = method;
+      req.type = 'fetch';
+    } else {
+      req = { url, method, type: 'fetch', status: 0, duration: 0, size: 0, _fromFetch: true };
+      requests.push(req);
+    }
 
     try {
       const response = await origFetch(input, init);
@@ -397,13 +426,22 @@
   const origXHRSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function(method, url) {
     this._wcMethod = method;
-    this._wcUrl = url;
+    this._wcUrl = String(url);
     return origXHROpen.apply(this, arguments);
   };
   XMLHttpRequest.prototype.send = function() {
     const startTime = performance.now();
-    const req = { url: this._wcUrl, method: this._wcMethod, type: 'xmlhttprequest', status: 0, duration: 0, size: 0 };
-    requests.push(req);
+    const url = this._wcUrl;
+    // Check if already tracked by PerformanceObserver
+    let req = requests.find(r => r.url === url && !r._fromXHR);
+    if (req) {
+      req._fromXHR = true;
+      req.method = this._wcMethod;
+      req.type = 'xmlhttprequest';
+    } else {
+      req = { url, method: this._wcMethod, type: 'xmlhttprequest', status: 0, duration: 0, size: 0, _fromXHR: true };
+      requests.push(req);
+    }
 
     this.addEventListener('load', () => {
       req.status = this.status;
@@ -419,6 +457,12 @@
 
     return origXHRSend.apply(this, arguments);
   };
+
+  // Network click handler (expand/collapse)
+  networkEl.addEventListener('click', e => {
+    const req = e.target.closest('.req');
+    if (req) req.classList.toggle('open');
+  });
 
   // Storage click handler
   storageEl.addEventListener('click', e => {
