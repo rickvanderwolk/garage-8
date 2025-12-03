@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Digitale Vissenkom</title>
+    <style>
+	    html, body, * {
+	        cursor: none !important;
+	    }
+
+        html, body {
+            overflow: hidden;
+        }
+
+        body {
+            margin: 0;
+            background: #000;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            text-align: center;
+            position: relative;
+        }
+
+        .layer {
+            position: absolute;
+            width: 300%;
+            height: 300%;
+            left: -100%;
+            top: -100%;
+            filter: blur(90px);
+            opacity: 0.55;
+            animation: flow1 14s infinite ease-in-out;
+        }
+
+        .layer2 {
+            position: absolute;
+            width: 300%;
+            height: 300%;
+            left: -100%;
+            top: -100%;
+            filter: blur(110px);
+            opacity: 0.45;
+            animation: flow2 18s infinite ease-in-out;
+        }
+
+        .layer3 {
+            position: absolute;
+            width: 300%;
+            height: 300%;
+            left: -100%;
+            top: -100%;
+            filter: blur(130px);
+            opacity: 0.32;
+            animation: flow3 22s infinite ease-in-out;
+        }
+
+        .layer {
+            background:
+                radial-gradient(circle at 20% 30%, rgba(0,140,255,0.45), transparent 60%),
+                radial-gradient(circle at 70% 60%, rgba(0,255,180,0.40), transparent 60%),
+                radial-gradient(circle at 40% 50%, rgba(0,90,255,0.35), transparent 65%);
+        }
+
+        .layer2 {
+            background:
+                radial-gradient(circle at 30% 80%, rgba(200,0,255,0.32), transparent 60%),
+                radial-gradient(circle at 80% 25%, rgba(0,255,130,0.28), transparent 60%);
+        }
+
+        .layer3 {
+            background:
+                radial-gradient(circle at 50% 50%, rgba(0,200,255,0.25), transparent 70%),
+                radial-gradient(circle at 20% 70%, rgba(255,0,180,0.22), transparent 70%);
+        }
+
+        @keyframes flow1 {
+            0%   { transform: scale(1) translate(0,0) rotate(0deg); }
+            50%  { transform: scale(1.15) translate(3%, -3%) rotate(180deg); }
+            100% { transform: scale(1) translate(0,0) rotate(360deg); }
+        }
+
+        @keyframes flow2 {
+            0%   { transform: scale(1.1) translate(0,0) rotate(0deg); }
+            50%  { transform: scale(0.9) translate(-4%, 4%) rotate(-180deg); }
+            100% { transform: scale(1.1) translate(0,0) rotate(-360deg); }
+        }
+
+        @keyframes flow3 {
+            0%   { transform: scale(1.05) translate(0,0) rotate(0deg); }
+            50%  { transform: scale(1.2) translate(5%, -2%) rotate(180deg); }
+            100% { transform: scale(1.05) translate(0,0) rotate(360deg); }
+        }
+
+        .center {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .text {
+            font-size: 7rem;
+            max-width: 60%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="layer"></div>
+    <div class="layer2"></div>
+    <div class="layer3"></div>
+
+    <div class="center">
+        <div class="text">
+            <b>VISSEN?</b>
+            <br><br>
+            <b>KOM</b>
+            <br>
+            maar voor het raam staan :)
+        </div>
+    </div>
+
+</body>
+</html>
