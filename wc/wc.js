@@ -6,6 +6,7 @@
   // State
   let logs = [];
   let filter = 'all';
+  let activePanel = 'console';
 
   // Inject CSS
   const style = document.createElement('style');
@@ -28,7 +29,7 @@
     #wc-container.wc-collapsed {
       height: 30px;
     }
-    #wc-container.wc-collapsed #wc-logs,
+    #wc-container.wc-collapsed #wc-content,
     #wc-container.wc-collapsed #wc-input-row {
       display: none;
     }
@@ -71,7 +72,29 @@
     #wc-toolbar button.wc-active {
       background: #007acc;
     }
-    #wc-toolbar button[data-filter] .wc-label {
+    #wc-filters {
+      display: flex;
+      gap: 3px;
+      padding: 3px 5px;
+      background: #252525;
+      flex-shrink: 0;
+    }
+    #wc-filters button {
+      background: #3a3a3a;
+      color: #fff;
+      border: none;
+      padding: 2px 5px;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+    #wc-filters button:hover {
+      background: #4a4a4a;
+    }
+    #wc-filters button.wc-active {
+      background: #007acc;
+    }
+    #wc-container[data-panel="storage"] #wc-filters {
       display: none;
     }
     .wc-count {
@@ -97,16 +120,27 @@
     #wc-count-debug {
       background: #b48ead;
     }
-    @media (min-width: 500px) {
-      #wc-toolbar button[data-filter] .wc-label {
-        display: inline;
-        margin-right: 3px;
-      }
+    #wc-content {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
     }
-    #wc-logs {
+    #wc-logs, #wc-storage {
       flex: 1;
       overflow-y: auto;
       padding: 5px;
+    }
+    #wc-storage {
+      display: none;
+    }
+    #wc-container[data-panel="storage"] #wc-logs,
+    #wc-container[data-panel="storage"] #wc-input-row,
+    #wc-container[data-panel="storage"] #wc-filters {
+      display: none;
+    }
+    #wc-container[data-panel="storage"] #wc-storage {
+      display: block;
     }
     .wc-log {
       padding: 1px 5px;
@@ -164,27 +198,90 @@
       padding: 8px 15px;
       cursor: pointer;
     }
+    /* Storage styles */
+    .wc-storage-section {
+      margin-bottom: 10px;
+    }
+    .wc-storage-header {
+      color: #61afef;
+      padding: 4px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .wc-storage-header:hover {
+      color: #8ac6f5;
+    }
+    .wc-storage-items {
+      padding-left: 15px;
+    }
+    .wc-storage-item {
+      padding: 2px 0;
+      cursor: pointer;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .wc-storage-item:hover > .wc-storage-key,
+    .wc-storage-item:hover > .wc-storage-toggle {
+      background: rgba(255,255,255,0.05);
+    }
+    .wc-storage-key {
+      color: #98c379;
+    }
+    .wc-storage-toggle {
+      color: #666;
+      width: 12px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .wc-storage-empty {
+      color: #666;
+      font-style: italic;
+    }
+    .wc-storage-children {
+      width: 100%;
+      padding-left: 16px;
+      border-left: 1px solid #333;
+      margin-left: 5px;
+    }
+    .wc-storage-preview {
+      margin-left: 5px;
+    }
+    .wc-string { color: #98c379; }
+    .wc-number { color: #d19a66; }
+    .wc-bool { color: #56b6c2; }
+    .wc-null { color: #666; }
+    .wc-undefined { color: #666; }
+    .wc-bracket { color: #abb2bf; }
   `;
   document.head.appendChild(style);
 
   // Inject HTML
   const container = document.createElement('div');
   container.id = 'wc-container';
+  container.dataset.panel = 'console';
   container.innerHTML = `
     <div id="wc-resize"></div>
     <div id="wc-toolbar">
-      <button data-filter="all" class="wc-active"><span class="wc-label">All</span><span class="wc-count" id="wc-count-all">0</span></button>
-      <button data-filter="error"><span class="wc-label">Error</span><span class="wc-count" id="wc-count-error">0</span></button>
-      <button data-filter="warn"><span class="wc-label">Warn</span><span class="wc-count" id="wc-count-warn">0</span></button>
-      <button data-filter="info"><span class="wc-label">Info</span><span class="wc-count" id="wc-count-info">0</span></button>
-      <button data-filter="log"><span class="wc-label">Log</span><span class="wc-count" id="wc-count-log">0</span></button>
-      <button data-filter="debug"><span class="wc-label">Debug</span><span class="wc-count" id="wc-count-debug">0</span></button>
+      <button data-panel="console" class="wc-active">Console</button>
+      <button data-panel="storage">Storage</button>
       <span class="wc-spacer"></span>
       <button id="wc-clear">Clear</button>
       <button id="wc-fullscreen">[ ]</button>
       <button id="wc-toggle">_</button>
     </div>
-    <div id="wc-logs"></div>
+    <div id="wc-filters">
+      <button data-filter="all" class="wc-active">All <span class="wc-count" id="wc-count-all">0</span></button>
+      <button data-filter="error">Err <span class="wc-count" id="wc-count-error">0</span></button>
+      <button data-filter="warn">Warn <span class="wc-count" id="wc-count-warn">0</span></button>
+      <button data-filter="info">Info <span class="wc-count" id="wc-count-info">0</span></button>
+      <button data-filter="log">Log <span class="wc-count" id="wc-count-log">0</span></button>
+      <button data-filter="debug">Debug <span class="wc-count" id="wc-count-debug">0</span></button>
+    </div>
+    <div id="wc-content">
+      <div id="wc-logs"></div>
+      <div id="wc-storage"></div>
+    </div>
     <div id="wc-input-row">
       <input type="text" id="wc-input" placeholder="Execute JavaScript...">
       <button id="wc-run">Run</button>
@@ -193,6 +290,7 @@
   document.body.appendChild(container);
 
   const logsEl = document.getElementById('wc-logs');
+  const storageEl = document.getElementById('wc-storage');
   const inputEl = document.getElementById('wc-input');
 
   const icons = {
@@ -225,8 +323,156 @@
     });
   }
 
+  // Render storage
+  function renderStorage() {
+    let html = '';
+
+    // LocalStorage
+    html += '<div class="wc-storage-section">';
+    html += '<div class="wc-storage-header" data-storage="local">▼ localStorage (' + localStorage.length + ')</div>';
+    html += '<div class="wc-storage-items" id="wc-local-items">';
+    if (localStorage.length === 0) {
+      html += '<div class="wc-storage-empty">(empty)</div>';
+    } else {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        html += renderStorageItem(key, value, 'local');
+      }
+    }
+    html += '</div></div>';
+
+    // SessionStorage
+    html += '<div class="wc-storage-section">';
+    html += '<div class="wc-storage-header" data-storage="session">▼ sessionStorage (' + sessionStorage.length + ')</div>';
+    html += '<div class="wc-storage-items" id="wc-session-items">';
+    if (sessionStorage.length === 0) {
+      html += '<div class="wc-storage-empty">(empty)</div>';
+    } else {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        const value = sessionStorage.getItem(key);
+        html += renderStorageItem(key, value, 'session');
+      }
+    }
+    html += '</div></div>';
+
+    storageEl.innerHTML = html;
+
+    // Add click handlers for storage items (use event delegation)
+    storageEl.addEventListener('click', (e) => {
+      const item = e.target.closest('.wc-storage-item');
+      if (!item) return;
+
+      const toggle = item.querySelector(':scope > .wc-storage-toggle');
+      const children = item.querySelector(':scope > .wc-storage-children');
+
+      if (!children || !toggle) return;
+      if (toggle.textContent.trim() === '') return; // Not expandable
+
+      e.stopPropagation();
+
+      if (children.style.display === 'none') {
+        children.style.display = 'block';
+        toggle.textContent = '▼';
+      } else {
+        children.style.display = 'none';
+        toggle.textContent = '▶';
+      }
+    });
+
+    // Add click handlers for section headers
+    storageEl.querySelectorAll('.wc-storage-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const items = header.nextElementSibling;
+        if (items.style.display === 'none') {
+          items.style.display = 'block';
+          header.textContent = header.textContent.replace('▶', '▼');
+        } else {
+          items.style.display = 'none';
+          header.textContent = header.textContent.replace('▼', '▶');
+        }
+      });
+    });
+  }
+
+  function renderStorageItem(key, value, type) {
+    let parsed = value;
+    try {
+      parsed = JSON.parse(value);
+    } catch (e) {}
+
+    return `
+      <div class="wc-storage-item" data-key="${escapeHtml(key)}" data-type="${type}">
+        <span class="wc-storage-toggle">▶</span>
+        <span class="wc-storage-key">${escapeHtml(key)}:</span>
+        <span class="wc-storage-preview">${getPreview(parsed)}</span>
+        <div class="wc-storage-children" style="display:none">${renderValue(parsed)}</div>
+      </div>
+    `;
+  }
+
+  function getPreview(value) {
+    if (value === null) return '<span class="wc-null">null</span>';
+    if (value === undefined) return '<span class="wc-undefined">undefined</span>';
+    if (typeof value === 'boolean') return `<span class="wc-bool">${value}</span>`;
+    if (typeof value === 'number') return `<span class="wc-number">${value}</span>`;
+    if (typeof value === 'string') return `<span class="wc-string">"${escapeHtml(value.length > 50 ? value.substring(0, 50) + '...' : value)}"</span>`;
+    if (Array.isArray(value)) return `<span class="wc-bracket">Array(${value.length})</span>`;
+    if (typeof value === 'object') return `<span class="wc-bracket">{${Object.keys(value).length}}</span>`;
+    return escapeHtml(String(value));
+  }
+
+  function renderValue(value, depth = 0) {
+    if (depth > 10) return '<span class="wc-null">...</span>';
+
+    if (value === null) return '<span class="wc-null">null</span>';
+    if (value === undefined) return '<span class="wc-undefined">undefined</span>';
+    if (typeof value === 'boolean') return `<span class="wc-bool">${value}</span>`;
+    if (typeof value === 'number') return `<span class="wc-number">${value}</span>`;
+    if (typeof value === 'string') return `<span class="wc-string">"${escapeHtml(value)}"</span>`;
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '<span class="wc-bracket">[]</span>';
+      let html = '';
+      value.forEach((item, i) => {
+        const isExpandable = typeof item === 'object' && item !== null;
+        html += `
+          <div class="wc-storage-item wc-nested">
+            ${isExpandable ? '<span class="wc-storage-toggle">▶</span>' : '<span class="wc-storage-toggle"> </span>'}
+            <span class="wc-storage-key">${i}:</span>
+            <span class="wc-storage-preview">${getPreview(item)}</span>
+            ${isExpandable ? `<div class="wc-storage-children" style="display:none">${renderValue(item, depth + 1)}</div>` : ''}
+          </div>
+        `;
+      });
+      return html;
+    }
+
+    if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      if (keys.length === 0) return '<span class="wc-bracket">{}</span>';
+      let html = '';
+      keys.forEach(k => {
+        const item = value[k];
+        const isExpandable = typeof item === 'object' && item !== null;
+        html += `
+          <div class="wc-storage-item wc-nested">
+            ${isExpandable ? '<span class="wc-storage-toggle">▶</span>' : '<span class="wc-storage-toggle"> </span>'}
+            <span class="wc-storage-key">${escapeHtml(k)}:</span>
+            <span class="wc-storage-preview">${getPreview(item)}</span>
+            ${isExpandable ? `<div class="wc-storage-children" style="display:none">${renderValue(item, depth + 1)}</div>` : ''}
+          </div>
+        `;
+      });
+      return html;
+    }
+
+    return escapeHtml(String(value));
+  }
+
   function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function getTime() {
@@ -301,6 +547,19 @@
     render();
   });
 
+  // Panel buttons
+  document.querySelectorAll('#wc-toolbar button[data-panel]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#wc-toolbar button[data-panel]').forEach(b => b.classList.remove('wc-active'));
+      btn.classList.add('wc-active');
+      activePanel = btn.dataset.panel;
+      container.dataset.panel = activePanel;
+      if (activePanel === 'storage') {
+        renderStorage();
+      }
+    });
+  });
+
   // Filter buttons
   document.querySelectorAll('#wc-toolbar button[data-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -311,10 +570,18 @@
     });
   });
 
-  // Clear button
+  // Clear button (context-aware)
   document.getElementById('wc-clear').addEventListener('click', () => {
-    logs = [];
-    render();
+    if (activePanel === 'console') {
+      logs = [];
+      render();
+    } else {
+      if (confirm('Clear all localStorage and sessionStorage?')) {
+        localStorage.clear();
+        sessionStorage.clear();
+        renderStorage();
+      }
+    }
   });
 
   // Store custom height

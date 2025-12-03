@@ -64,6 +64,25 @@
   <script src="wc.js"></script>
 
   <script>
+    // Add some demo storage data
+    localStorage.setItem('user', JSON.stringify({
+      name: 'John',
+      email: 'john@example.com',
+      settings: {
+        notifications: true,
+        theme: 'dark',
+        language: 'en'
+      },
+      roles: ['admin', 'user']
+    }));
+    localStorage.setItem('theme', 'dark');
+    localStorage.setItem('lastVisit', new Date().toISOString());
+    sessionStorage.setItem('sessionId', 'abc123');
+    sessionStorage.setItem('cart', JSON.stringify([
+      { id: 1, name: 'Widget', qty: 2, options: { color: 'blue', size: 'M' } },
+      { id: 2, name: 'Gadget', qty: 1, options: { color: 'red' } }
+    ]));
+
     // Log some messages on load
     console.log('Page loaded');
     console.info('wc demo started');
