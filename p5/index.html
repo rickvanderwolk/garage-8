@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>p5.js example</title>
+  <style>
+    body {
+      padding: 0;
+      margin: 0;
+      background-color: #1b1b1b;
+    }
+    #sketch-select {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      padding: 5px 10px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+  <script src="p5.min.js"></script>
+  <!-- <script src="addons/p5.sound.js"></script> -->
+</head>
+
+<body>
+  <select id="sketch-select"></select>
+  <main>
+  </main>
+  <script src="sketch-loader.js"></script>
+</body>
+
+</html>
