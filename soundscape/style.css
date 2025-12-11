@@ -26,6 +26,44 @@
     }
 }
 
+[data-theme="dark"] {
+    --bg-color: #0a0a0a;
+    --toolbar-bg: rgba(20, 20, 20, 0.95);
+    --toolbar-border: rgba(255, 255, 255, 0.1);
+    --button-bg: #1a1a1a;
+    --button-hover-bg: #2a2a2a;
+    --button-border: rgba(255, 255, 255, 0.15);
+    --text-color: #e0e0e0;
+}
+
+[data-theme="dark"] .color-btn {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .color-btn.active {
+    border-color: white;
+}
+
+[data-theme="dark"] .icon-btn {
+    background: rgba(30, 30, 30, 0.9);
+    color: #e0e0e0;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .icon-btn:hover {
+    background: rgba(50, 50, 50, 0.95);
+}
+
+[data-theme="dark"] .start-button {
+    background: rgba(30, 30, 30, 0.9);
+    color: #e0e0e0;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .start-button:hover {
+    background: rgba(50, 50, 50, 0.95);
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
     background: var(--bg-color);
