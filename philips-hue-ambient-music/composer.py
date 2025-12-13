@@ -524,6 +524,9 @@ class MelodyVoice:
         self.envelope = 0.0
         self.octave = 1
 
+        # Drone frequencies to snap to
+        self.drone_freqs: list[float] = []
+
         # Pattern state
         self.pattern_position = 0
         self.pattern_direction = 1
@@ -536,43 +539,67 @@ class MelodyVoice:
         self.scale = SCALE_FREQUENCIES.get(scale_type, SCALE_FREQUENCIES["pentatonic"])
         self.root_freq = root_freq
 
+    def set_drone_frequencies(self, freqs: list[float]):
+        """Set available drone frequencies to snap to."""
+        self.drone_freqs = sorted([f for f in freqs if f > 0])
+
     def trigger_note(self):
-        """Trigger a new note based on personality pattern."""
+        """Trigger a new note based on personality pattern, snapping to drone notes."""
         pattern = self.personality.pattern_type
         nervousness = self.personality.nervousness
 
-        # More nervous = more variation
-        if self.rng.random() < nervousness:
-            # Random jump
-            step = self.rng.choice([-3, -2, 2, 3])
-        else:
-            # Follow pattern
-            if pattern == "walk":
-                step = self.rng.choice([-1, 0, 1])
-            elif pattern == "up":
-                step = 1 if self.rng.random() > 0.3 else -1
-            elif pattern == "down":
-                step = -1 if self.rng.random() > 0.3 else 1
-            elif pattern == "zigzag":
-                step = self.pattern_direction
-                self.pattern_direction *= -1
-            elif pattern == "jump":
-                step = self.rng.choice([-2, 2])
-            elif pattern == "repeat":
-                step = 0 if self.rng.random() > 0.4 else self.rng.choice([-1, 1])
-            elif pattern == "chord":
-                # Chord: jump by thirds/fifths
-                step = self.rng.choice([0, 2, 4, -2, -4])
-            elif pattern == "trill":
-                # Trill: alternate between two adjacent notes
-                step = 1 if self.pattern_position % 2 == 0 else -1
+        # If we have drone frequencies, snap to them
+        if self.drone_freqs:
+            # Build extended frequency list with octave variations
+            available_freqs = []
+            for f in self.drone_freqs:
+                available_freqs.append(f * 0.5)   # Octave down
+                available_freqs.append(f)         # Original
+                available_freqs.append(f * 2)     # Octave up
+                available_freqs.append(f * 4)     # Two octaves up
+            available_freqs = sorted(set(available_freqs))
+
+            # Pick frequency based on pattern
+            if self.rng.random() < nervousness:
+                # Nervous: random pick
+                self.current_freq = self.rng.choice(available_freqs)
             else:
-                step = 0
+                # Pattern-based movement through available notes
+                if pattern in ("up", "walk") and self.rng.random() > 0.3:
+                    higher = [f for f in available_freqs if f > self.current_freq * 1.01]
+                    self.current_freq = higher[0] if higher else available_freqs[-1]
+                elif pattern == "down" and self.rng.random() > 0.3:
+                    lower = [f for f in available_freqs if f < self.current_freq * 0.99]
+                    self.current_freq = lower[-1] if lower else available_freqs[0]
+                elif pattern == "zigzag":
+                    if self.pattern_direction > 0:
+                        higher = [f for f in available_freqs if f > self.current_freq * 1.01]
+                        self.current_freq = higher[0] if higher else available_freqs[-1]
+                    else:
+                        lower = [f for f in available_freqs if f < self.current_freq * 0.99]
+                        self.current_freq = lower[-1] if lower else available_freqs[0]
+                    self.pattern_direction *= -1
+                elif pattern == "repeat":
+                    if self.rng.random() > 0.6:
+                        self.current_freq = self.rng.choice(available_freqs)
+                elif pattern in ("jump", "chord"):
+                    self.current_freq = self.rng.choice(available_freqs)
+                elif pattern == "trill":
+                    idx = available_freqs.index(min(available_freqs, key=lambda f: abs(f - self.current_freq)))
+                    if self.pattern_position % 2 == 0:
+                        idx = min(idx + 1, len(available_freqs) - 1)
+                    else:
+                        idx = max(idx - 1, 0)
+                    self.current_freq = available_freqs[idx]
+                else:
+                    self.current_freq = self.rng.choice(available_freqs)
+        else:
+            # Fallback to scale-based
+            step = self.rng.choice([-1, 0, 1])
+            self.current_degree = max(0, min(len(self.scale) - 1, self.current_degree + step))
+            semitone = self.scale[self.current_degree]
+            self.current_freq = self.root_freq * (2 ** (semitone / 12)) * (2 ** self.octave)
 
-        self.current_degree = max(0, min(len(self.scale) - 1, self.current_degree + step))
-
-        semitone = self.scale[self.current_degree]
-        self.current_freq = self.root_freq * (2 ** (semitone / 12)) * (2 ** self.octave)
         self.envelope = 1.0
         self.pattern_position += 1
 
@@ -685,6 +712,11 @@ class MelodyLayer:
         for voice in self.voices.values():
             voice.set_scale(scale_type, root_freq)
 
+    def set_drone_frequencies(self, freqs: list[float]):
+        """Pass drone frequencies to all melody voices for harmonic snapping."""
+        for voice in self.voices.values():
+            voice.set_drone_frequencies(freqs)
+
     def trigger_random_voice(self):
         """Trigger a note on a random voice."""
         if self.voices:
@@ -795,6 +827,8 @@ class Composer:
         if frequencies:
             root = min(f for f in frequencies if f > 0) if any(f > 0 for f in frequencies) else BASE_FREQUENCY
             self.melody.set_scale(scale, root)
+            # Pass drone frequencies to melody for harmonic snapping
+            self.melody.set_drone_frequencies(frequencies)
 
     def update_from_sensors(self, personalities: list[SensorPersonality]):
         """Update from sensor metadata."""
