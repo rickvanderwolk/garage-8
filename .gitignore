@@ -4,3 +4,8 @@
 .claude/
 evolving-hue-lights/config.json
 evolving-hue-lights/venv
+
+# Ambient music - Hue API credentials
+ambient-music/.hue_config.json
+ambient-music/venv/
+ambient-music/__pycache__/
