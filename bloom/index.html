@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bloom</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Bloom</h1>
+            <div class="stats">
+                <span>Generation: <strong id="generation">0</strong></span>
+                <button id="reset-btn">Reset</button>
+            </div>
+        </header>
+
+        <div class="grid" id="grid">
+            <div class="box" data-id="0">
+                <div class="box-name"></div>
+                <canvas></canvas>
+                <div class="history"></div>
+            </div>
+            <div class="box" data-id="1">
+                <div class="box-name"></div>
+                <canvas></canvas>
+                <div class="history"></div>
+            </div>
+            <div class="box" data-id="2">
+                <div class="box-name"></div>
+                <canvas></canvas>
+                <div class="history"></div>
+            </div>
+            <div class="box" data-id="3">
+                <div class="box-name"></div>
+                <canvas></canvas>
+                <div class="history"></div>
+            </div>
+        </div>
+
+        <div class="setup-overlay" id="setup">
+            <div class="setup-content">
+                <h2>Geef ze een naam</h2>
+                <p class="subtitle">Elke naam evolueert anders</p>
+
+                <div class="boxes-setup">
+                    <div class="box-params" data-id="0">
+                        <input type="text" class="name-only" name="name" placeholder="Naam..." maxlength="25" autocomplete="off">
+                    </div>
+
+                    <div class="box-params" data-id="1">
+                        <input type="text" class="name-only" name="name" placeholder="Naam..." maxlength="25" autocomplete="off">
+                    </div>
+
+                    <div class="box-params" data-id="2">
+                        <input type="text" class="name-only" name="name" placeholder="Naam..." maxlength="25" autocomplete="off">
+                    </div>
+
+                    <div class="box-params" data-id="3">
+                        <input type="text" class="name-only" name="name" placeholder="Naam..." maxlength="25" autocomplete="off">
+                    </div>
+                </div>
+
+                <button id="start-btn">Start</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
