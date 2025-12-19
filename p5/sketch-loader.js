@@ -4,7 +4,7 @@
 
   const select = document.getElementById('sketch-select');
 
-  for (let i = 1; i <= 29; i++) {
+  for (let i = 1; i <= 40; i++) {
     const option = document.createElement('option');
     option.value = i;
     option.textContent = `Sketch ${i}`;
