@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Picker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Color Picker</h1>
+        </header>
+
+        <section class="input-section">
+            <input type="text" id="colorInput" placeholder="Paste color...">
+            <input type="color" id="picker" value="#3b82f6">
+        </section>
+
+        <section class="sliders">
+            <div class="slider-row">
+                <span class="slider-label">R</span>
+                <input type="range" id="r" min="0" max="255" value="59">
+                <span class="slider-value" id="r-val">59</span>
+            </div>
+            <div class="slider-row">
+                <span class="slider-label">G</span>
+                <input type="range" id="g" min="0" max="255" value="130">
+                <span class="slider-value" id="g-val">130</span>
+            </div>
+            <div class="slider-row">
+                <span class="slider-label">B</span>
+                <input type="range" id="b" min="0" max="255" value="246">
+                <span class="slider-value" id="b-val">246</span>
+            </div>
+            <div class="slider-row">
+                <span class="slider-label">H</span>
+                <input type="range" id="h" min="0" max="360" value="217">
+                <span class="slider-value" id="h-val">217°</span>
+            </div>
+            <div class="slider-row">
+                <span class="slider-label">S</span>
+                <input type="range" id="s" min="0" max="100" value="91">
+                <span class="slider-value" id="s-val">91%</span>
+            </div>
+            <div class="slider-row">
+                <span class="slider-label">L</span>
+                <input type="range" id="l" min="0" max="100" value="60">
+                <span class="slider-value" id="l-val">60%</span>
+            </div>
+        </section>
+
+        <section class="preview-section">
+            <div class="color-preview" id="preview">
+                <span class="contrast-text light">Aa</span>
+                <span class="contrast-text dark">Aa</span>
+            </div>
+        </section>
+
+        <section class="formats">
+            <button class="format-btn" id="hexOut">#3b82f6</button>
+            <button class="format-btn" id="rgbOut">rgb(59, 130, 246)</button>
+            <button class="format-btn" id="hslOut">hsl(217, 91%, 60%)</button>
+        </section>
+
+        <section class="palettes">
+            <div class="palette-row">
+                <span class="palette-label">Shades</span>
+                <div class="palette" id="shades"></div>
+            </div>
+            <div class="palette-row">
+                <span class="palette-label">Tints</span>
+                <div class="palette" id="tints"></div>
+            </div>
+            <div class="palette-row">
+                <span class="palette-label">Complement</span>
+                <div class="palette" id="harmonyComp"></div>
+            </div>
+            <div class="palette-row">
+                <span class="palette-label">Analogous</span>
+                <div class="palette" id="harmonyAnalog"></div>
+            </div>
+            <div class="palette-row">
+                <span class="palette-label">Triad</span>
+                <div class="palette" id="harmonyTriad"></div>
+            </div>
+            <div class="palette-row">
+                <span class="palette-label">Split</span>
+                <div class="palette" id="harmonySplit"></div>
+            </div>
+            <div class="palette-row">
+                <span class="palette-label">Tetrad</span>
+                <div class="palette" id="harmonyTetrad"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
