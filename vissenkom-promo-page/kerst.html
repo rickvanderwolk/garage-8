@@ -104,12 +104,13 @@
                 const size = isFar ? Math.random() * 3 + 2
                            : isNear ? Math.random() * 8 + 8
                            : Math.random() * 5 + 4;
+                const duration = Math.random() * 5 + 5;
 
                 flake.className = 'snowflake' + (isFar ? ' far' : '') + (isNear ? ' near' : '');
                 flake.style.left = Math.random() * 100 + '%';
                 flake.style.width = flake.style.height = size + 'px';
-                flake.style.animationDuration = Math.random() * 5 + 5 + 's';
-                flake.style.animationDelay = Math.random() * 10 + 's';
+                flake.style.animationDuration = duration + 's';
+                flake.style.animationDelay = -Math.random() * duration + 's';
                 snow.appendChild(flake);
             }
         }
