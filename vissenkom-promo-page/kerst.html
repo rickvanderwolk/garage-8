@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Digitale Vissenkom - Kerst</title>
+    <style>
+	    html, body, * {
+	        cursor: none !important;
+	    }
+
+        html, body {
+            overflow: hidden;
+        }
+
+        body {
+            margin: 0;
+            background: #b22222;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            text-align: center;
+            position: relative;
+        }
+
+        .center {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .text {
+            font-size: 7rem;
+            max-width: 60%;
+        }
+
+        .snow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .snowflake {
+            position: absolute;
+            top: -30px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0.8;
+            animation: fall linear infinite;
+        }
+
+        .snowflake.far {
+            filter: blur(2px);
+            opacity: 0.5;
+        }
+
+        .snowflake.near {
+            opacity: 0.9;
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(0);
+            }
+            100% {
+                transform: translateY(calc(100vh + 50px));
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="snow" id="snow"></div>
+
+    <div class="center">
+        <div class="text">
+            <b>HO, HO, HO!</b>
+            <br><br>
+            <b>KOM</b>
+            <br>
+            maar voor het raam staan :)
+        </div>
+    </div>
+
+    <script>
+        function createSnowflakes() {
+            const snow = document.getElementById('snow');
+            const count = 80;
+
+            for (let i = 0; i < count; i++) {
+                const flake = document.createElement('div');
+                const rand = Math.random();
+                const isFar = rand < 0.4;
+                const isNear = rand > 0.7;
+                const size = isFar ? Math.random() * 3 + 2
+                           : isNear ? Math.random() * 8 + 8
+                           : Math.random() * 5 + 4;
+
+                flake.className = 'snowflake' + (isFar ? ' far' : '') + (isNear ? ' near' : '');
+                flake.style.left = Math.random() * 100 + '%';
+                flake.style.width = flake.style.height = size + 'px';
+                flake.style.animationDuration = Math.random() * 5 + 5 + 's';
+                flake.style.animationDelay = Math.random() * 10 + 's';
+                snow.appendChild(flake);
+            }
+        }
+        createSnowflakes();
+    </script>
+
+</body>
+</html>
