@@ -1,5 +1,3 @@
 # Soundscape
 
-![Soundscape Preview](assets/preview-optimized.png)
-
-A visual instrument for creating ambient soundscapes.
+Project has been moved to [https://github.com/rickvanderwolk/soundscape](https://github.com/rickvanderwolk/soundscape)
