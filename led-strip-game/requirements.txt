@@ -1,3 +1,0 @@
-# LED strip game requirements
-adafruit-circuitpython-neopixel
-pygame>=2.5.0

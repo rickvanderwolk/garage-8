@@ -1,3 +1,3 @@
 # LED Strip Game
 
-An endless runner game on a WS2812B LED strip, controlled with a game controller on a Raspberry Pi.
+Project has been moved to [https://github.com/rickvanderwolk/led-game](https://github.com/rickvanderwolk/led-game)
