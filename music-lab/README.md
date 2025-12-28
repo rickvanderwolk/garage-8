@@ -1,5 +1,3 @@
 # Music lab
 
-![Music Lab Preview](assets/preview2-optimized.png)
-
-A simple browser-based sequencer.
+Project has been moved to [https://github.com/rickvanderwolk/music-lab](https://github.com/rickvanderwolk/music-lab)
