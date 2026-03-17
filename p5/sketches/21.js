@@ -1,5 +1,5 @@
 let t=0, cells=[];
-function setup(){createCanvas(windowWidth,windowHeight);noStroke();colorMode(HSB,360,100,100,100)}
+function setup(){createCanvas(windowWidth,windowHeight);frameRate(30);noStroke();colorMode(HSB,360,100,100,100)}
 function subdiv(x,y,w,h,depth){
     if(depth==0){cells.push({x,y,w,h});return}
     let mw=w/2, mh=h/2;

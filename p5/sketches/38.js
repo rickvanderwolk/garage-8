@@ -3,6 +3,7 @@ let charSize = 18;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   background(0);
   textFont('monospace');
   textSize(charSize);

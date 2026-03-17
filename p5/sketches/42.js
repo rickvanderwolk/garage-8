@@ -10,6 +10,7 @@ let margin = 40;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   noStroke();
   calcGrid();
 }

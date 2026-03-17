@@ -10,6 +10,7 @@ let cells = [];
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   noFill();
   buildGrid();
 }

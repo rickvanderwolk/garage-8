@@ -1,5 +1,5 @@
 let t=0;
-function setup(){createCanvas(windowWidth,windowHeight);noStroke();colorMode(HSB,360,100,100,100)}
+function setup(){createCanvas(windowWidth,windowHeight);frameRate(30);noStroke();colorMode(HSB,360,100,100,100)}
 function draw(){
     background(0,22); translate(width/2,height/2);
     let m=min(width,height)*0.26, s=m*0.12;

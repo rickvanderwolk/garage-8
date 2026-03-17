@@ -1,8 +1,10 @@
 let columns = [];
 let numColumns = 80;
+let stars = [];
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   colorMode(HSB, 360, 100, 100, 100);
   noStroke();
 
@@ -13,6 +15,16 @@ function setup() {
       speed: random(0.2, 0.5),
       hueBase: random(100, 160)
     });
+  }
+
+  generateStars();
+}
+
+function generateStars() {
+  stars = [];
+  randomSeed(99);
+  for (let i = 0; i < 200; i++) {
+    stars.push({ x: random(width), y: random(height * 0.7), s: random(1, 2.5), i: i });
   }
 }
 
@@ -35,10 +47,10 @@ function draw() {
   blendMode(BLEND);
 
   // horizon glow
-  for (let y = height * 0.82; y < height; y++) {
+  for (let y = height * 0.82; y < height; y += 4) {
     let alpha = map(y, height * 0.82, height, 10, 0);
     fill(140, 50, 30, alpha);
-    rect(0, y, width, 1);
+    rect(0, y, width, 4);
   }
 
   // bergen silhouet
@@ -47,13 +59,10 @@ function draw() {
 }
 
 function drawStars() {
-  randomSeed(99);
-  for (let i = 0; i < 200; i++) {
-    let x = random(width);
-    let y = random(height * 0.7);
-    let twinkle = noise(i, millis() * 0.001) * 60 + 20;
+  for (let st of stars) {
+    let twinkle = noise(st.i, millis() * 0.001) * 60 + 20;
     fill(0, 0, 100, twinkle);
-    circle(x, y, random(1, 2.5));
+    circle(st.x, st.y, st.s);
   }
 }
 
@@ -104,4 +113,5 @@ function drawMountains() {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+  generateStars();
 }

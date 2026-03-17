@@ -1,7 +1,9 @@
 let ribbons = [];
+let stars = [];
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   colorMode(HSB, 360, 100, 100, 100);
   noFill();
 
@@ -13,18 +15,27 @@ function setup() {
       speed: 0.08 + i * 0.02
     });
   }
+
+  generateStars();
+}
+
+function generateStars() {
+  stars = [];
+  randomSeed(55);
+  for (let i = 0; i < 100; i++) {
+    stars.push({ x: random(width), y: random(height * 0.6), s: random(1, 2), i: i });
+  }
 }
 
 function draw() {
   background(220, 40, 6);
 
   // subtiele sterren
-  randomSeed(55);
   noStroke();
-  for (let i = 0; i < 100; i++) {
-    let twinkle = noise(i, millis() * 0.0005) * 25 + 10;
+  for (let st of stars) {
+    let twinkle = noise(st.i, millis() * 0.0005) * 25 + 10;
     fill(0, 0, 100, twinkle);
-    circle(random(width), random(height * 0.6), random(1, 2));
+    circle(st.x, st.y, st.s);
   }
 
   let t = millis() * 0.0003;
@@ -70,4 +81,5 @@ function drawRibbon(r, t) {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+  generateStars();
 }

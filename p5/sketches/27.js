@@ -15,6 +15,7 @@ var bloemenKleuren = [
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
 
   zonX = width - 120;
   zonY = 150;

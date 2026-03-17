@@ -2,6 +2,7 @@ let particles = [];
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   colorMode(HSB, 360, 100, 100, 100);
   background(210, 60, 8);
 

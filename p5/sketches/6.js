@@ -2,6 +2,7 @@ let dots = [];
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
+  frameRate(30);
     for (let i = 0; i < 100; i++) {
         dots.push({x: random(width), y: random(height), dx: random(-1,1), dy: random(-1,1)});
     }

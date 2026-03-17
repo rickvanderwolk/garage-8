@@ -3,6 +3,7 @@ let maxParticles = 400; // limiet voor performance
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   background(0);
   noStroke();
 }

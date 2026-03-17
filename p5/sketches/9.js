@@ -1,6 +1,6 @@
 let tris=[];
 function setup(){
-    createCanvas(windowWidth,windowHeight);noStroke();
+    createCanvas(windowWidth,windowHeight);frameRate(30);noStroke();
     for(let i=0;i<120;i++){
         tris.push({x:random(width),y:random(-height,height),s:random(10,40),r:random(TWO_PI),v:random(1,4)});
     }

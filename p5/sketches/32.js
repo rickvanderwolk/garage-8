@@ -1,8 +1,11 @@
 let waves = [];
 let numWaves = 5;
+let stars = [];
+let trees = [];
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   colorMode(HSB, 360, 100, 100, 100);
   noStroke();
 
@@ -15,6 +18,21 @@ function setup() {
       offset: random(1000)
     });
   }
+
+  generateStarsAndTrees();
+}
+
+function generateStarsAndTrees() {
+  stars = [];
+  trees = [];
+  randomSeed(42);
+  for (let i = 0; i < 150; i++) {
+    stars.push({ x: random(width), y: random(height * 0.6), s: random(1, 2) });
+  }
+  randomSeed(123);
+  for (let x = 0; x < width; x += 40) {
+    trees.push({ x: x, h: random(30, 80) });
+  }
 }
 
 function draw() {
@@ -22,13 +40,9 @@ function draw() {
   background(240, 60, 5);
 
   // sterren
-  randomSeed(42);
   fill(0, 0, 100, 40);
-  for (let i = 0; i < 150; i++) {
-    let x = random(width);
-    let y = random(height * 0.6);
-    let s = random(1, 2);
-    circle(x, y, s);
+  for (let st of stars) {
+    circle(st.x, st.y, st.s);
   }
 
   let t = millis() * 0.001;
@@ -48,10 +62,8 @@ function draw() {
 
   // silhouet bomen
   fill(0);
-  randomSeed(123);
-  for (let x = 0; x < width; x += 40) {
-    let h = random(30, 80);
-    triangle(x, height * 0.85, x + 15, height * 0.85 - h, x + 30, height * 0.85);
+  for (let tr of trees) {
+    triangle(tr.x, height * 0.85, tr.x + 15, height * 0.85 - tr.h, tr.x + 30, height * 0.85);
   }
 }
 
@@ -78,4 +90,5 @@ function drawAuroraWave(w, t) {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+  generateStarsAndTrees();
 }

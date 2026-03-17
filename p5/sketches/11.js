@@ -1,5 +1,5 @@
 let t=0;
-function setup(){createCanvas(windowWidth,windowHeight);rectMode(CENTER);noStroke()}
+function setup(){createCanvas(windowWidth,windowHeight);frameRate(30);rectMode(CENTER);noStroke()}
 function draw(){
     background(0,20);
     let m=min(width,height)*0.25, s=m*0.35;

@@ -3,6 +3,7 @@ let numParticles = 800;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   colorMode(HSB, 360, 100, 100, 100);
   background(0);
 

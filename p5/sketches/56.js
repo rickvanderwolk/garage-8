@@ -2,6 +2,7 @@ let x, y;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   background(20);
   colorMode(HSB, 360, 100, 100, 100);
   x = width / 2;

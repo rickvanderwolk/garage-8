@@ -1,5 +1,5 @@
 let tt=0;
-function setup(){createCanvas(windowWidth,windowHeight);rectMode(CENTER);noStroke()}
+function setup(){createCanvas(windowWidth,windowHeight);frameRate(30);rectMode(CENTER);noStroke()}
 function draw(){
     background(0);
     for(let x=40;x<width;x+=80){for(let y=40;y<height;y+=80){

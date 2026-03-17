@@ -4,6 +4,7 @@ let palette = ['#0D1B2A', '#1B263B', '#415A77', '#778DA9', '#E0E1DD'];
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   background(13, 27, 42);
 
   for (let i = 0; i < 2000; i++) {

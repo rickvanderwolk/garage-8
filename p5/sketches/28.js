@@ -15,6 +15,7 @@ var bloemenKleuren = [
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(30);
   grond = height * 0.75;
 
   // wolken - bovenaan, 4 stuks verdeeld

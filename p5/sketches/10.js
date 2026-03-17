@@ -1,4 +1,4 @@
-function setup(){createCanvas(windowWidth,windowHeight);noStroke()}
+function setup(){createCanvas(windowWidth,windowHeight);frameRate(30);noStroke()}
 function draw(){
     background(5);
     let w=60,h=52;
