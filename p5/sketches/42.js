@@ -1,0 +1,56 @@
+let palette = [
+  '#F72585', '#B5179E', '#7209B7', '#560BAD',
+  '#480CA8', '#3A0CA3', '#3F37C9', '#4361EE',
+  '#4895EF', '#4CC9F0'
+];
+
+let cols, rows;
+let spacing = 80;
+let margin = 40;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noStroke();
+  calcGrid();
+}
+
+function calcGrid() {
+  cols = floor((width - margin * 2) / spacing);
+  rows = floor((height - margin * 2) / spacing);
+}
+
+function draw() {
+  background(15, 15, 25);
+
+  let t = millis() * 0.001;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      let x = margin + (width - margin * 2 - (cols - 1) * spacing) / 2 + c * spacing;
+      let y = margin + (height - margin * 2 - (rows - 1) * spacing) / 2 + r * spacing;
+
+      let seed = r * cols + c;
+
+      let sizes = [];
+      for (let i = 0; i < 4; i++) {
+        sizes.push(map(sin(t * 0.8 + seed * 0.15 + i * 1.5), -1, 1, 10, 34));
+      }
+
+      let order = [0, 1, 2, 3].sort((a, b) => sizes[b] - sizes[a]);
+
+      for (let idx of order) {
+        let colIndex = (seed * 3 + idx * 2) % palette.length;
+        let col = color(palette[colIndex]);
+        col.setAlpha(200);
+
+        fill(col);
+        circle(x, y, sizes[idx]);
+      }
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  calcGrid();
+}
