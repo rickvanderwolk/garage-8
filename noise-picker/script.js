@@ -372,11 +372,10 @@ function buildPalette() {
     });
     paletteEl.appendChild(btn);
   }
-  const custom = document.createElement("button");
-  custom.type = "button";
+  const custom = document.createElement("label");
   custom.className = "tile custom";
   custom.setAttribute("aria-label", "custom color");
-  custom.addEventListener("click", () => picker.click());
+  custom.appendChild(picker); // move the actual input inside so iOS opens natively
   paletteEl.appendChild(custom);
 }
 
@@ -444,6 +443,8 @@ function drawSpectrum() {
   cctx.clearRect(0, 0, w, h);
 
   const fg = getComputedStyle(document.documentElement).getPropertyValue("--fg").trim() || "#111";
+  const isLight = fg === "#fff" || fg.toLowerCase() === "#ffffff";
+  const base = isLight ? "255,255,255" : "0,0,0";
   const minF = 20, maxF = 20000;
   const logMin = Math.log(minF), logMax = Math.log(maxF);
 
@@ -454,13 +455,13 @@ function drawSpectrum() {
   // Baseline + three tiny labels — acts as the frame so the area still feels
   // like a chart even when nothing is playing.
   cctx.lineWidth = 1 * dpr;
-  cctx.strokeStyle = fg + "22";
+  cctx.strokeStyle = `rgba(${base},0.18)`;
   cctx.beginPath();
   cctx.moveTo(0, plotH - 0.5);
   cctx.lineTo(w, plotH - 0.5);
   cctx.stroke();
 
-  cctx.fillStyle = fg + "66";
+  cctx.fillStyle = `rgba(${base},0.55)`;
   cctx.font = `${10 * dpr}px -apple-system, BlinkMacSystemFont, system-ui, sans-serif`;
   cctx.textAlign = "center";
   cctx.textBaseline = "middle";
@@ -479,7 +480,7 @@ function drawSpectrum() {
 
   cctx.lineWidth = 2 * dpr;
   cctx.strokeStyle = fg;
-  cctx.fillStyle = fg + "33";
+  cctx.fillStyle = `rgba(${base},0.22)`;
 
   const samples = 256;
   const pts = [];

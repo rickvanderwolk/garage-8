@@ -71,11 +71,28 @@ header .hint {
     0 4px 10px rgba(0,0,0,0.18);
 }
 .tile.custom {
+  position: relative;
+  overflow: hidden;
   background: conic-gradient(
     from 0deg,
     #ff5252, #ff9b3c, #ffe066, #3fae5a, #78dce6,
     #3aa0ff, #5a5ac8, #9b5cff, #ff3cc8, #ff5252
   );
+  display: inline-block;
+}
+.tile.custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 /* Readout */
@@ -135,13 +152,3 @@ header .hint {
   background-color: transparent;
 }
 
-/* Native color picker is invisible — opened via the rainbow tile. */
-#picker {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-  border: 0;
-  padding: 0;
-}
