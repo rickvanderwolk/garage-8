@@ -8,31 +8,25 @@
 </head>
 <body>
   <main>
-    <h1>Noise picker</h1>
-    <p class="hint">Pick a color, hear the closest noise.</p>
-
-    <label class="picker">
-      <input type="color" id="picker" value="#ff77aa" />
-      <span class="swatch" id="swatch"></span>
-    </label>
+    <header>
+      <h1>Noise picker</h1>
+      <p class="hint">Tap a color, hear the noise.</p>
+    </header>
 
     <div class="readout">
       <div class="name" id="name">pink noise</div>
-      <div class="desc" id="desc"></div>
+      <div class="meta" id="meta">−3.0 dB/oct</div>
     </div>
 
-    <button id="toggle">play</button>
+    <canvas id="spectrum" width="800" height="140"></canvas>
 
-    <ul class="legend">
-      <li><span style="background:#ffffff"></span>white — flat spectrum</li>
-      <li><span style="background:#ff8fb2"></span>pink — 1/f, natural / rainfall</li>
-      <li><span style="background:#7a3b1a"></span>brown — 1/f², deep rumble</li>
-      <li><span style="background:#3aa0ff"></span>blue — +3 dB/oct, hiss</li>
-      <li><span style="background:#9b5cff"></span>violet — +6 dB/oct, sharp</li>
-      <li><span style="background:#888888"></span>grey — perceptually flat</li>
-      <li><span style="background:#3fae5a"></span>green — mid-band, natural ambience</li>
-      <li><span style="background:#111111"></span>black — sparse silence</li>
-    </ul>
+    <button id="toggle" class="play" aria-label="play / stop">
+      <span class="play-icon"></span>
+    </button>
+
+    <div class="palette" id="palette" aria-label="noise colors"></div>
+
+    <input type="color" id="picker" value="#ff8fb2" tabindex="-1" />
   </main>
   <script src="script.js"></script>
 </body>
