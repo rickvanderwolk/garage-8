@@ -34,6 +34,24 @@ const PALETTE = [
   { name: "black",   hex: "#111111" },
 ];
 
+// Canonical mapping for each named tile: bypasses HSL classification
+// when the user clicks an exact PALETTE entry.
+const NOISE_MAP = {
+  brown:   { mode: "tilt",    tilt: -6   },
+  orange:  { mode: "tilt",    tilt: -4.5 },
+  pink:    { mode: "tilt",    tilt: -3   },
+  yellow:  { mode: "tilt",    tilt: -1.5 },
+  white:   { mode: "tilt",    tilt:  0   },
+  cyan:    { mode: "tilt",    tilt: +1.5 },
+  blue:    { mode: "tilt",    tilt: +3   },
+  indigo:  { mode: "tilt",    tilt: +4.5 },
+  violet:  { mode: "tilt",    tilt: +6   },
+  grey:    { mode: "grey"                },
+  green:   { mode: "green"               },
+  magenta: { mode: "magenta"             },
+  black:   { mode: "black"               },
+};
+
 // Five spectrally-distinct reference noises that we actually synthesize.
 const AUDIO_ANCHORS = [
   { tilt: -6, name: "brown"  },
@@ -69,6 +87,7 @@ let playing = false;
 let currentMode = "tilt";  // "tilt" or one of: grey/green/black/magenta
 let currentTilt = -3;      // only meaningful when currentMode === "tilt"
 let currentName = "pink";
+let activeTileName = "pink"; // canonical PALETTE name, or "custom"
 
 // ---- Color helpers ----------------------------------------------------
 
@@ -95,30 +114,81 @@ function rgbToHsl([r, g, b]) {
   return [h, s, l];
 }
 
+// Named tilt anchors (used for naming and for snapping discrete tile picks).
+const NAMED_TILTS = [
+  { tilt: -6,   name: "brown"  },
+  { tilt: -4.5, name: "orange" },
+  { tilt: -3,   name: "pink"   },
+  { tilt: -1.5, name: "yellow" },
+  { tilt:  0,   name: "white"  },
+  { tilt: +1.5, name: "cyan"   },
+  { tilt: +3,   name: "blue"   },
+  { tilt: +4.5, name: "indigo" },
+  { tilt: +6,   name: "violet" },
+];
+
+function nearestTiltName(t) {
+  let best = NAMED_TILTS[0], bestD = Infinity;
+  for (const a of NAMED_TILTS) {
+    const d = Math.abs(a.tilt - t);
+    if (d < bestD) { bestD = d; best = a; }
+  }
+  return best.name;
+}
+
+// Continuous hue → tilt mapping along the rainbow.
+// Anchors at the canonical hues we labeled in the palette. Outside the
+// rainbow (the gaps around green and magenta) we fall through to off-axis
+// classification instead.
+const HUE_ANCHORS = [
+  { h:   0, tilt: -6   }, // red / brown territory
+  { h:  25, tilt: -4.5 }, // orange
+  { h:  50, tilt: -2.5 }, // yellow-orange edge
+  { h: 175, tilt:  0   }, // cyan-leaning white
+  { h: 195, tilt: +1.5 }, // cyan
+  { h: 220, tilt: +3   }, // blue
+  { h: 258, tilt: +4.5 }, // indigo
+  { h: 290, tilt: +6   }, // violet
+];
+
+function hueToTilt(h) {
+  if (h <= HUE_ANCHORS[0].h) return HUE_ANCHORS[0].tilt;
+  if (h >= HUE_ANCHORS[HUE_ANCHORS.length - 1].h) {
+    return HUE_ANCHORS[HUE_ANCHORS.length - 1].tilt;
+  }
+  for (let i = 0; i < HUE_ANCHORS.length - 1; i++) {
+    const a = HUE_ANCHORS[i], b = HUE_ANCHORS[i + 1];
+    if (h >= a.h && h <= b.h) {
+      const u = (h - a.h) / (b.h - a.h);
+      return a.tilt + (b.tilt - a.tilt) * u;
+    }
+  }
+  return 0;
+}
+
 function classifyColor(rgb) {
   const [h, s, l] = rgbToHsl(rgb);
 
-  if (l < 0.10) return { mode: "black",   name: "black"   };
-  if (l > 0.92 && s < 0.20) return { mode: "tilt", name: "white", tilt: 0 };
-  if (s < 0.15) return { mode: "grey",    name: "grey"    };
+  if (l < 0.10) return { mode: "black", name: "black" };
+  if (l > 0.92 && s < 0.15) return { mode: "tilt", name: "white", tilt: 0 };
+  if (s < 0.15) return { mode: "grey",  name: "grey"  };
 
-  // Brown lives in the red-orange band at low lightness.
-  if ((h < 50 || h > 340) && l < 0.45 && s > 0.25) {
-    return { mode: "tilt", name: "brown", tilt: -6 };
+  // Off-axis hues: green band and magenta band stay discrete.
+  if (h >= 75 && h < 165 && s > 0.25) return { mode: "green",   name: "green"   };
+  if (h >= 305 && h < 345 && s > 0.25) return { mode: "magenta", name: "magenta" };
+
+  // Pink: very light reds (high lightness, red/pink hue). Snap to canonical pink.
+  if ((h < 20 || h > 340) && l > 0.65 && s > 0.2) {
+    return { mode: "tilt", name: "pink", tilt: -3 };
   }
 
-  // Hue-based mapping for the rest.
-  if (h >= 15 && h < 45)  return { mode: "tilt",   name: "orange", tilt: -4.5 };
-  if (h >= 45 && h < 70)  return { mode: "tilt",   name: "yellow", tilt: -1.5 };
-  if (h >= 70 && h < 165) return { mode: "green",  name: "green"  };
-  if (h >= 165 && h < 200)return { mode: "tilt",   name: "cyan",   tilt: +1.5 };
-  if (h >= 200 && h < 245)return { mode: "tilt",   name: "blue",   tilt: +3   };
-  if (h >= 245 && h < 275)return { mode: "tilt",   name: "indigo", tilt: +4.5 };
-  if (h >= 275 && h < 315)return { mode: "tilt",   name: "violet", tilt: +6   };
-  if (h >= 315 && h < 345)return { mode: "magenta",name: "magenta"};
+  // Hues outside the rainbow arc but not caught above: wrap into red side.
+  let tilt;
+  if (h > 290 && h < 305)      tilt = +6;
+  else if (h > 345)             tilt = -6;
+  else                          tilt = hueToTilt(h);
 
-  // Reds: light → pink, otherwise pink (brown already handled by lightness).
-  return { mode: "tilt", name: "pink", tilt: -3 };
+  return { mode: "tilt", name: nearestTiltName(tilt), tilt };
 }
 
 // ---- Audio init -------------------------------------------------------
@@ -343,7 +413,7 @@ function applyVisuals(hex) {
   const lum = (0.2126*rgb[0] + 0.7152*rgb[1] + 0.0722*rgb[2]) / 255;
   document.documentElement.style.setProperty("--fg", lum > 0.55 ? "#111" : "#fff");
 
-  nameEl.textContent = `${currentName} noise`;
+  nameEl.textContent = currentName;
   if (currentMode === "tilt") {
     const t = currentTilt;
     metaEl.textContent = `${t >= 0 ? "+" : "−"}${Math.abs(t).toFixed(1)} dB/oct`;
@@ -352,7 +422,11 @@ function applyVisuals(hex) {
   }
 
   for (const tile of paletteEl.children) {
-    tile.classList.toggle("active", tile.dataset.name === currentName);
+    if (tile.classList.contains("custom")) {
+      tile.classList.toggle("active", activeTileName === "custom");
+    } else {
+      tile.classList.toggle("active", tile.dataset.name === activeTileName);
+    }
   }
 }
 
@@ -381,13 +455,38 @@ function buildPalette() {
 
 // ---- Selection update -------------------------------------------------
 
+function describeTilt(t) {
+  for (let i = 0; i < NAMED_TILTS.length - 1; i++) {
+    const a = NAMED_TILTS[i], b = NAMED_TILTS[i + 1];
+    if (t >= a.tilt && t <= b.tilt) {
+      const u = (t - a.tilt) / (b.tilt - a.tilt);
+      if (u < 0.08) return `${a.name} noise`;
+      if (u > 0.92) return `${b.name} noise`;
+      return `${a.name}–${b.name}`;
+    }
+  }
+  return `${nearestTiltName(t)} noise`;
+}
+
 function selectColor(hex, { fromLoad = false } = {}) {
-  const rgb = hexToRgb(hex);
-  const c = classifyColor(rgb);
-  const modeChanged = (c.mode !== currentMode);
-  currentMode = c.mode;
-  currentName = c.name;
-  if (c.mode === "tilt") currentTilt = c.tilt;
+  const canonical = PALETTE.find(p => p.hex.toLowerCase() === hex.toLowerCase());
+  let modeChanged;
+
+  if (canonical) {
+    const m = NOISE_MAP[canonical.name];
+    modeChanged = m.mode !== currentMode;
+    currentMode = m.mode;
+    if (m.mode === "tilt") currentTilt = m.tilt;
+    activeTileName = canonical.name;
+    currentName = `${canonical.name} noise`;
+  } else {
+    const c = classifyColor(hexToRgb(hex));
+    modeChanged = c.mode !== currentMode;
+    currentMode = c.mode;
+    if (c.mode === "tilt") currentTilt = c.tilt;
+    activeTileName = "custom";
+    currentName = c.mode === "tilt" ? describeTilt(c.tilt) : `${c.name} noise`;
+  }
 
   applyVisuals(hex);
 
@@ -396,7 +495,7 @@ function selectColor(hex, { fromLoad = false } = {}) {
     toggleBtn.classList.add("playing");
     startChain();
   } else if (playing) {
-    if (modeChanged || c.mode !== "tilt") {
+    if (modeChanged || currentMode !== "tilt") {
       startChain();
     } else if (activeChain && activeChain.gains) {
       applyTilt(currentTilt, activeChain.gains);
