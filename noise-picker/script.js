@@ -82,6 +82,9 @@ let analyserData = null;
 let buffers = null;
 let activeChain = null;
 let playing = false;
+let mediaDest = null;     // MediaStreamDestination for the bridge
+let bgAudio = null;       // <audio> element that actually outputs the sound
+let directConnected = false; // fallback flag if bridge fails
 
 // Current selection driven by the color picker.
 let currentMode = "tilt";  // "tilt" or one of: grey/green/black/magenta
@@ -205,10 +208,70 @@ function ensureCtx() {
     analyser.maxDecibels = -10;
     analyserData = new Float32Array(analyser.frequencyBinCount);
     masterGain.connect(analyser);
-    analyser.connect(ctx.destination);
+
+    // Background-audio bridge: route output through an <audio> element so
+    // iOS keeps it alive when the screen locks. Falls back to ctx.destination
+    // if MediaStream or srcObject isn't supported.
+    try {
+      mediaDest = ctx.createMediaStreamDestination();
+      analyser.connect(mediaDest);
+      bgAudio = new Audio();
+      bgAudio.srcObject = mediaDest.stream;
+      bgAudio.setAttribute("playsinline", "");
+      bgAudio.preload = "auto";
+      // Attach to DOM — some iOS versions require this for the element
+      // to be recognized as media that can play in the background.
+      document.body.appendChild(bgAudio);
+    } catch {
+      analyser.connect(ctx.destination);
+      directConnected = true;
+    }
+
     buffers = buildReferenceBuffers(ctx, 5);
+    setupMediaSession();
   }
   if (ctx.state === "suspended") ctx.resume();
+  if (bgAudio && bgAudio.paused) {
+    bgAudio.play().catch(() => {
+      // Bridge failed at playback time — patch in direct destination.
+      if (!directConnected) {
+        try { analyser.connect(ctx.destination); directConnected = true; } catch {}
+      }
+    });
+  }
+}
+
+function setupMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+  try {
+    navigator.mediaSession.setActionHandler("play", () => {
+      if (!playing) {
+        playing = true;
+        toggleBtn.classList.add("playing");
+        startChain();
+        updateMediaSession();
+      }
+    });
+    navigator.mediaSession.setActionHandler("pause", () => {
+      if (playing) {
+        playing = false;
+        toggleBtn.classList.remove("playing");
+        stopChain();
+        updateMediaSession();
+      }
+    });
+  } catch {}
+}
+
+function updateMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentName || "noise",
+      artist: "Noise picker",
+    });
+    navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+  } catch {}
 }
 
 function rmsNormalize(arr, target = 0.2) {
@@ -428,6 +491,8 @@ function applyVisuals(hex) {
       tile.classList.toggle("active", tile.dataset.name === activeTileName);
     }
   }
+
+  updateMediaSession();
 }
 
 function buildPalette() {
@@ -615,6 +680,7 @@ toggleBtn.addEventListener("click", () => {
   playing = !playing;
   toggleBtn.classList.toggle("playing", playing);
   if (playing) startChain(); else stopChain();
+  updateMediaSession();
 });
 
 buildPalette();
