@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Slijm</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100vw; height: 100vh; overflow: hidden; background: #060812; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: block; touch-action: none; cursor: crosshair; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const SCALE = 3;                 // sporenraster t.o.v. scherm
+        let W, H, DPR, tw, th, TN;
+        let A, B, C, A2, B2, C2;         // drie kleur-kanalen (sporen)
+        let off, offCtx, img, data;
+
+        // verkenners
+        const CAP = 9000;
+        const ax=new Float32Array(CAP), ay=new Float32Array(CAP), aang=new Float32Array(CAP);
+        const asp=new Uint8Array(CAP);   // soort 0/1/2 (kleur)
+        let count=0, head=0;
+
+        function setup(){
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W*DPR; canvas.height = H*DPR;
+            canvas.style.width = W+'px'; canvas.style.height = H+'px';
+            ctx.setTransform(DPR,0,0,DPR,0,0);
+            tw = Math.floor(W/SCALE); th = Math.floor(H/SCALE); TN = tw*th;
+            A=new Float32Array(TN); B=new Float32Array(TN); C=new Float32Array(TN);
+            A2=new Float32Array(TN); B2=new Float32Array(TN); C2=new Float32Array(TN);
+            off=document.createElement('canvas'); off.width=tw; off.height=th;
+            offCtx=off.getContext('2d'); img=offCtx.createImageData(tw,th); data=img.data;
+        }
+        setup();
+        window.addEventListener('resize', setup);
+
+        function spawn(x,y,ang,sp){
+            let i; if (count<CAP) i=count++; else { i=head; head=(head+1)%CAP; }
+            ax[i]=x; ay[i]=y; aang[i]=ang; asp[i]=sp;
+        }
+        // begin met een wolk verkenners -> vormt meteen een netwerk
+        for (let k=0;k<5000;k++) spawn(Math.random()*tw, Math.random()*th, Math.random()*Math.PI*2, k%3);
+
+        // ---------- parameters ----------
+        const SENS_ANG = 0.55, SENS_DIST = 9, TURN = 0.5, SPEED = 1.0, DEPOSIT = 0.22, DECAY = 0.90;
+
+        function sampleSum(x,y){
+            let xi=x|0, yi=y|0;
+            if (xi<0)xi=0; else if(xi>=tw)xi=tw-1;
+            if (yi<0)yi=0; else if(yi>=th)yi=th-1;
+            const i=yi*tw+xi;
+            return A[i]+B[i]+C[i];
+        }
+        function updateAgents(){
+            const n=Math.min(count,CAP);
+            for (let i=0;i<n;i++){
+                const a=aang[i], x=ax[i], y=ay[i];
+                const fl = sampleSum(x+Math.cos(a-SENS_ANG)*SENS_DIST, y+Math.sin(a-SENS_ANG)*SENS_DIST);
+                const fc = sampleSum(x+Math.cos(a)*SENS_DIST,          y+Math.sin(a)*SENS_DIST);
+                const fr = sampleSum(x+Math.cos(a+SENS_ANG)*SENS_DIST, y+Math.sin(a+SENS_ANG)*SENS_DIST);
+                let na=a;
+                if (fc>=fl && fc>=fr){ /* recht door */ }
+                else if (fl>fr) na=a-TURN;
+                else if (fr>fl) na=a+TURN;
+                else na=a+(Math.random()-0.5)*TURN*2;
+                let nx=x+Math.cos(na)*SPEED, ny=y+Math.sin(na)*SPEED;
+                // toroidaal
+                if (nx<0)nx+=tw; else if(nx>=tw)nx-=tw;
+                if (ny<0)ny+=th; else if(ny>=th)ny-=th;
+                aang[i]=na; ax[i]=nx; ay[i]=ny;
+                // spoor achterlaten in eigen kanaal
+                const ci=(ny|0)*tw+(nx|0);
+                if (asp[i]===0) A[ci]+=DEPOSIT; else if(asp[i]===1) B[ci]+=DEPOSIT; else C[ci]+=DEPOSIT;
+            }
+        }
+
+        function diffuse(S, S2){
+            for (let y=0;y<th;y++) for (let x=0;x<tw;x++){
+                const i=y*tw+x;
+                const l=x>0?S[i-1]:S[i], r=x<tw-1?S[i+1]:S[i];
+                const u=y>0?S[i-tw]:S[i], d=y<th-1?S[i+tw]:S[i];
+                S2[i]=((S[i]+l+r+u+d)*0.2)*DECAY;
+            }
+            for (let i=0;i<TN;i++) S[i]=S2[i];
+        }
+
+        // ---------- kleur ----------
+        let baseHue = Math.random();
+        function hsl(h,s,l){
+            h=((h%1)+1)%1;
+            const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h*6)%2-1)), m=l-c/2;
+            let r,g,b; const seg=Math.floor(h*6)%6;
+            if(seg===0){r=c;g=x;b=0;}else if(seg===1){r=x;g=c;b=0;}else if(seg===2){r=0;g=c;b=x;}
+            else if(seg===3){r=0;g=x;b=c;}else if(seg===4){r=x;g=0;b=c;}else{r=c;g=0;b=x;}
+            return [(r+m),(g+m),(b+m)];
+        }
+        function render(){
+            // drie harmonische tinten (triadisch), traag verschuivend
+            const c0=hsl(baseHue,        0.6, 0.55);
+            const c1=hsl(baseHue+0.33,   0.6, 0.55);
+            const c2=hsl(baseHue+0.66,   0.6, 0.55);
+            const gain=1.1;
+            for (let i=0;i<TN;i++){
+                const a=Math.min(1,A[i]*gain), b=Math.min(1,B[i]*gain), c=Math.min(1,C[i]*gain);
+                let r=6 + (c0[0]*a + c1[0]*b + c2[0]*c)*255;
+                let g=8 + (c0[1]*a + c1[1]*b + c2[1]*c)*255;
+                let bl=18 + (c0[2]*a + c1[2]*b + c2[2]*c)*255;
+                const p=i*4;
+                data[p]=r>255?255:r; data[p+1]=g>255?255:g; data[p+2]=bl>255?255:bl; data[p+3]=255;
+            }
+            offCtx.putImageData(img,0,0);
+            ctx.imageSmoothingEnabled=true;
+            ctx.drawImage(off,0,0,W,H);
+        }
+
+        // ---------- tekenen: zaai verkenners ----------
+        let down=false;
+        function pos(e){ const t=e.touches?e.touches[0]:e; return {x:t.clientX/SCALE,y:t.clientY/SCALE}; }
+        function seed(x,y){
+            for (let k=0;k<26;k++){
+                const a=Math.random()*Math.PI*2, r=Math.random()*6;
+                spawn(x+Math.cos(a)*r, y+Math.sin(a)*r, Math.random()*Math.PI*2, (Math.random()*3)|0);
+            }
+        }
+        function onDown(e){ down=true; const p=pos(e); seed(p.x,p.y); e.preventDefault(); }
+        function onMove(e){ if(!down)return; const p=pos(e); seed(p.x,p.y); e.preventDefault(); }
+        function onUp(){ down=false; }
+        canvas.addEventListener('mousedown',onDown);
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',onUp);
+        canvas.addEventListener('touchstart',onDown,{passive:false});
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',onUp);
+        window.addEventListener('keydown',e=>{ if(e.key==='c'||e.key==='C'){ A.fill(0);B.fill(0);C.fill(0); count=0; head=0; } });
+
+        // ---------- loop ----------
+        function loop(){
+            updateAgents();
+            diffuse(A,A2); diffuse(B,B2); diffuse(C,C2);
+            baseHue=(baseHue+0.0004)%1;
+            render();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

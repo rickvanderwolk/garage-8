@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rimpel 2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100vw; height: 100vh; overflow: hidden; background: #05070f; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: block; touch-action: none; cursor: crosshair; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const SCALE = 3;
+        let W, H, DPR, tw, th, TN;
+        let cur, prev;
+        let off, offCtx, img, data;
+
+        function setup(){
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W*DPR; canvas.height = H*DPR;
+            canvas.style.width = W+'px'; canvas.style.height = H+'px';
+            ctx.setTransform(DPR,0,0,DPR,0,0);
+            tw = Math.floor(W/SCALE); th = Math.floor(H/SCALE); TN = tw*th;
+            cur=new Float32Array(TN); prev=new Float32Array(TN);
+            off=document.createElement('canvas'); off.width=tw; off.height=th;
+            offCtx=off.getContext('2d'); img=offCtx.createImageData(tw,th); data=img.data;
+        }
+        setup();
+        window.addEventListener('resize', setup);
+
+        // ---------- golf-vergelijking (water-rimpel) ----------
+        const DAMP = 0.992;   // langere nagalf: golven blijven langer stromen & bouncen
+        function step(){
+            for (let y=1;y<th-1;y++){
+                let i=y*tw+1;
+                for (let x=1;x<tw-1;x++,i++){
+                    let v = (prev[i-1]+prev[i+1]+prev[i-tw]+prev[i+tw])*0.5 - cur[i];
+                    cur[i] = v*DAMP;
+                }
+            }
+            const t=cur; cur=prev; prev=t;   // swap
+        }
+        function disturb(cx,cy,rad,amp){
+            for (let dy=-rad;dy<=rad;dy++) for (let dx=-rad;dx<=rad;dx++){
+                if (dx*dx+dy*dy>rad*rad) continue;
+                const x=cx+dx, y=cy+dy;
+                if (x<1||x>=tw-1||y<1||y>=th-1) continue;
+                prev[y*tw+x] += amp;
+            }
+        }
+
+        // ---------- kleur ----------
+        let baseHue = Math.random();
+        function hsl(h,s,l){
+            h=((h%1)+1)%1; if(l<0)l=0; else if(l>1)l=1;
+            const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h*6)%2-1)), m=l-c/2;
+            let r,g,b; const seg=Math.floor(h*6)%6;
+            if(seg===0){r=c;g=x;b=0;}else if(seg===1){r=x;g=c;b=0;}else if(seg===2){r=0;g=c;b=x;}
+            else if(seg===3){r=0;g=x;b=c;}else if(seg===4){r=x;g=0;b=c;}else{r=c;g=0;b=x;}
+            return [(r+m)*255,(g+m)*255,(b+m)*255];
+        }
+        function render(){
+            for (let y=0;y<th;y++){
+                let i=y*tw;
+                for (let x=0;x<tw;x++,i++){
+                    const h=cur[i];
+                    // helling -> pseudo-belichting (iriserend oppervlak)
+                    const xl = x>0?cur[i-1]:h, xr = x<tw-1?cur[i+1]:h;
+                    const yu = y>0?cur[i-tw]:h, yd = y<th-1?cur[i+tw]:h;
+                    const dx=xr-xl, dy=yd-yu;
+                    const shade=(dx-dy);
+                    let lum = 0.14 + shade*0.045;
+                    if (lum<0.03) lum=0.03; else if (lum>0.8) lum=0.8;
+                    const hue = baseHue + h*0.0016 + shade*0.004;
+                    const [r,g,b]=hsl(hue, 0.6, lum);
+                    const p=i*4;
+                    data[p]=r; data[p+1]=g; data[p+2]=b; data[p+3]=255;
+                }
+            }
+            offCtx.putImageData(img,0,0);
+            ctx.imageSmoothingEnabled=true;
+            ctx.drawImage(off,0,0,W,H);
+        }
+
+        // ---------- input ----------
+        let down=false, lx=0, ly=0;
+        function pos(e){ const t=e.touches?e.touches[0]:e; return {x:(t.clientX/SCALE)|0, y:(t.clientY/SCALE)|0}; }
+        function onDown(e){ down=true; const p=pos(e); lx=p.x; ly=p.y; disturb(p.x,p.y,3,420); e.preventDefault(); }
+        function onMove(e){ const p=pos(e); if(down){
+                // trek een lijn van rimpels mee
+                const steps=Math.max(1,Math.hypot(p.x-lx,p.y-ly)|0);
+                for (let s=0;s<=steps;s++){ const x=lx+(p.x-lx)*s/steps, y=ly+(p.y-ly)*s/steps; disturb(x|0,y|0,2,180); }
+                e.preventDefault();
+            } lx=p.x; ly=p.y; }
+        function onUp(){ down=false; }
+        canvas.addEventListener('mousedown',onDown);
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',onUp);
+        canvas.addEventListener('touchstart',onDown,{passive:false});
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',onUp);
+        window.addEventListener('keydown',e=>{ if(e.key==='c'||e.key==='C'){ cur.fill(0); prev.fill(0); } });
+
+        // ---------- loop ----------
+        function loop(){
+            // geen spontane druppels: uit zichzelf blijft het vlak spiegelglad
+            step();
+            baseHue=(baseHue+0.0006)%1;
+            render();
+            requestAnimationFrame(loop);
+        }
+        // start spiegelglad — alleen wat jij tekent maakt rimpels
+        loop();
+    </script>
+</body>
+</html>
