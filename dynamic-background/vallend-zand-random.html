@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vallend zand — random kleuren</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: #0a0a12; position: relative;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: block; touch-action: none; cursor: crosshair; }
+        #palette {
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 100; background: rgba(0,0,0,0.45); padding: 8px; border-radius: 12px; backdrop-filter: blur(4px);
+        }
+        #palette button {
+            width: 46px; height: 46px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.25);
+            cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff;
+        }
+        #palette button:hover { transform: scale(1.12); }
+        #palette button.active { border-color: #fff; border-width: 4px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="palette"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const paletteEl = document.getElementById('palette');
+
+        const EMPTY=0, SAND=1, WATER=2, STONE=3, WOOD=4, FIRE=5, SMOKE=6, STEAM=7;
+        const POWDER='p', LIQUID='l', GAS='g', STATIC='s', SPECIAL='x';
+        const cls=[], dens=[], flam=[];
+        function M(id,c,d,fl){ cls[id]=c; dens[id]=d; flam[id]=fl||false; }
+        M(EMPTY,STATIC,0); M(SAND,POWDER,2.0); M(WATER,LIQUID,1.0); M(STONE,STATIC,99);
+        M(WOOD,STATIC,99,true); M(FIRE,SPECIAL,0); M(SMOKE,GAS,-2); M(STEAM,GAS,-2);
+        const FIRE_LIFE=70;
+
+        // random kleur (hue 0..1) per materiaal
+        const matHue=[];
+        function shuffleColors(){ [SAND,WATER,STONE,WOOD,FIRE].forEach(m=>matHue[m]=Math.random()); refreshButtons(); }
+
+        const CELL = 4;
+        let cols, rows, N, W, H, DPR;
+        let grid, shade, life, moved;
+        let off, offCtx, img, data;
+
+        function setup(){
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W*DPR; canvas.height = H*DPR;
+            canvas.style.width = W+'px'; canvas.style.height = H+'px';
+            ctx.setTransform(DPR,0,0,DPR,0,0);
+            cols = Math.floor(W/CELL); rows = Math.floor(H/CELL); N = cols*rows;
+            grid=new Uint8Array(N); shade=new Uint8Array(N); life=new Uint8Array(N); moved=new Uint8Array(N);
+            off=document.createElement('canvas'); off.width=cols; off.height=rows;
+            offCtx=off.getContext('2d'); img=offCtx.createImageData(cols,rows); data=img.data;
+        }
+        setup();
+        window.addEventListener('resize', setup);
+
+        const rnd=()=>(Math.random()*256)|0;
+        const clamp255=v=>v<0?0:v>255?255:v;
+        function swap(i,j){
+            const tg=grid[i],ts=shade[i],tl=life[i];
+            grid[i]=grid[j];shade[i]=shade[j];life[i]=life[j];
+            grid[j]=tg;shade[j]=ts;life[j]=tl;
+            moved[i]=1; moved[j]=1;
+        }
+
+        // ---------- beweging ----------
+        function canInto(d,t){ if(t===EMPTY)return true; const c=cls[t]; if(c===POWDER||c===LIQUID||c===GAS)return dens[t]<d; return false; }
+        function canRise(d,t){ if(t===EMPTY)return true; const c=cls[t]; if(c===POWDER||c===LIQUID||c===GAS)return dens[t]>d; return false; }
+        let frame=0;
+        function simulate(){
+            moved.fill(0);
+            for (let y=rows-1;y>=0;y--){
+                const ltr=((y+frame)&1)===0;
+                for (let k=0;k<cols;k++){
+                    const x=ltr?k:cols-1-k; const i=y*cols+x;
+                    if (moved[i]) continue;
+                    const m=grid[i], c=cls[m];
+                    if (c===POWDER) powder(x,y,i,m);
+                    else if (c===LIQUID) liquid(x,y,i,m);
+                    else if (c===GAS) gas(x,y,i,m);
+                }
+            }
+        }
+        function powder(x,y,i,m){
+            const d=dens[m];
+            if (y+1<rows){
+                const b=i+cols;
+                if (canInto(d,grid[b])){ swap(i,b); return; }
+                const dir=Math.random()<0.5?-1:1;
+                for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canInto(d,grid[b+dx])){swap(i,b+dx);return;} }
+            }
+        }
+        function liquid(x,y,i,m){
+            const d=dens[m];
+            if (y+1<rows){
+                const b=i+cols;
+                if (canInto(d,grid[b])){ swap(i,b); return; }
+                const dir=Math.random()<0.5?-1:1;
+                for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canInto(d,grid[b+dx])){swap(i,b+dx);return;} }
+            }
+            const dir=Math.random()<0.5?-1:1;
+            for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canInto(d,grid[i+dx])){swap(i,i+dx);return;} }
+        }
+        function gas(x,y,i,m){
+            const d=dens[m]; life[i]++;
+            if (life[i]>90){ grid[i]=EMPTY; return; }
+            if (y>0){
+                const u=i-cols;
+                if (canRise(d,grid[u])){ swap(i,u); return; }
+                const dir=Math.random()<0.5?-1:1;
+                for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canRise(d,grid[u+dx])){swap(i,u+dx);return;} }
+            }
+            if (Math.random()<0.25){ const dx=Math.random()<0.5?-1:1; if(x+dx>=0&&x+dx<cols&&grid[i+dx]===EMPTY)swap(i,i+dx); }
+        }
+
+        // ---------- reacties (vuur brandt hout, water -> stoom) ----------
+        const N8=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+        function reactions(){
+            for (let y=0;y<rows;y++) for (let x=0;x<cols;x++){
+                const i=y*cols+x;
+                if (grid[i]!==FIRE) continue;
+                if (life[i]>0) life[i]--;
+                for (const [dx,dy] of N8){
+                    const nx=x+dx,ny=y+dy; if(nx<0||nx>=cols||ny<0||ny>=rows)continue;
+                    const ni=ny*cols+nx;
+                    if (flam[grid[ni]] && Math.random()<0.10){ grid[ni]=FIRE; life[ni]=FIRE_LIFE; }
+                    else if (grid[ni]===WATER){ grid[ni]=STEAM; life[ni]=0; grid[i]=EMPTY; }
+                }
+                if (grid[i]===FIRE){
+                    if (Math.random()<0.14 && y>0 && grid[i-cols]===EMPTY){ grid[i-cols]=SMOKE; life[i-cols]=0; }
+                    if (life[i]===0) grid[i]=EMPTY;
+                }
+            }
+        }
+
+        // ---------- render ----------
+        function hsv(h,s,v){
+            const i=Math.floor(h*6), f=h*6-i, p=v*(1-s), q=v*(1-f*s), t=v*(1-(1-f)*s);
+            let r,g,b;
+            switch(i%6){ case 0:r=v;g=t;b=p;break; case 1:r=q;g=v;b=p;break; case 2:r=p;g=v;b=t;break;
+                case 3:r=p;g=q;b=v;break; case 4:r=t;g=p;b=v;break; default:r=v;g=p;b=q; }
+            return [r*255,g*255,b*255];
+        }
+        function render(){
+            for (let i=0;i<N;i++){
+                const m=grid[i]; const p=i*4; const sv=(shade[i]-128)/255;
+                let r,g,b;
+                if (m===EMPTY){ r=10;g=10;b=18; }
+                else if (m===SMOKE){ r=84;g=86;b=96; }
+                else if (m===STEAM){ r=198;g=206;b=218; }
+                else if (m===FIRE){ const fl=(Math.random()*0.18-0.06); const c=hsv(matHue[FIRE], 0.85, 0.62+fl); r=c[0];g=c[1];b=c[2]; }
+                else { const c=hsv(matHue[m], 0.62, 0.55+sv*0.18); r=c[0];g=c[1];b=c[2]; }
+                data[p]=clamp255(r);data[p+1]=clamp255(g);data[p+2]=clamp255(b);data[p+3]=255;
+            }
+            offCtx.putImageData(img,0,0);
+            ctx.globalCompositeOperation='source-over';
+            ctx.imageSmoothingEnabled=false;
+            ctx.drawImage(off,0,0,W,H);
+            // subtiele gloed
+            ctx.imageSmoothingEnabled=true;
+            ctx.globalCompositeOperation='lighter';
+            ctx.globalAlpha=0.20; ctx.drawImage(off,0,0,W,H);
+            ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+        }
+
+        // ---------- input ----------
+        let painting=false, px=0, py=0; const brush=5;
+        let current=SAND;
+        function pos(e){ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; }
+        function paint(){
+            const gx=Math.floor(px/CELL), gy=Math.floor(py/CELL);
+            for (let dy=-brush;dy<=brush;dy++) for (let dx=-brush;dx<=brush;dx++){
+                if (dx*dx+dy*dy>brush*brush) continue;
+                const x=gx+dx, y=gy+dy;
+                if (x<0||x>=cols||y<0||y>=rows) continue;
+                const i=y*cols+x;
+                if (current===EMPTY){ grid[i]=EMPTY; life[i]=0; continue; }
+                const fluidLike = current===SAND||current===WATER;
+                if (fluidLike && grid[i]!==EMPTY && Math.random()<0.5) continue;
+                grid[i]=current; shade[i]=rnd();
+                if (current===FIRE) life[i]=FIRE_LIFE;
+            }
+        }
+        function onDown(e){ painting=true; const p=pos(e); px=p.x; py=p.y; paint(); e.preventDefault(); }
+        function onMove(e){ const p=pos(e); px=p.x; py=p.y; if(painting){ paint(); e.preventDefault(); } }
+        function onUp(){ painting=false; }
+        canvas.addEventListener('mousedown',onDown);
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',onUp);
+        canvas.addEventListener('touchstart',onDown,{passive:false});
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',onUp);
+
+        // ---------- palet ----------
+        const MATS=[
+            { id:SAND, label:'' }, { id:WATER, label:'' }, { id:STONE, label:'' },
+            { id:WOOD, label:'' }, { id:FIRE, label:'' }, { id:EMPTY, label:'✕' }
+        ];
+        const titles={[SAND]:'Zand',[WATER]:'Water',[STONE]:'Steen',[WOOD]:'Hout',[FIRE]:'Vuur',[EMPTY]:'Gum'};
+        function matCss(m){
+            if (m===EMPTY) return '#1a1a26';
+            const [r,g,b]=hsv(matHue[m], m===FIRE?0.85:0.62, 0.6);
+            return `rgb(${r|0},${g|0},${b|0})`;
+        }
+        let buttons=[];
+        function refreshButtons(){ buttons.forEach(b=>{ const id=+b.dataset.id; if(id!==EMPTY) b.style.background=matCss(id); }); }
+        shuffleColors();   // init random kleuren
+        MATS.forEach(mat=>{
+            const b=document.createElement('button');
+            b.dataset.id=mat.id; b.title=titles[mat.id]; b.textContent=mat.label;
+            b.style.background=matCss(mat.id);
+            if (mat.id===current) b.classList.add('active');
+            b.addEventListener('click',()=>{ current=mat.id; buttons.forEach(c=>c.classList.toggle('active',+c.dataset.id===mat.id)); });
+            paletteEl.appendChild(b); buttons.push(b);
+        });
+        // dobbelsteen: nieuwe willekeurige kleuren
+        const dice=document.createElement('button');
+        dice.textContent='🎲'; dice.title='Nieuwe kleuren';
+        dice.addEventListener('click',shuffleColors);
+        paletteEl.appendChild(dice);
+        refreshButtons();
+
+        // ---------- loop ----------
+        function loop(){
+            simulate();
+            reactions();
+            if (painting) paint();
+            render();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

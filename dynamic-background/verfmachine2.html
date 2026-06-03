@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Verfmachine 2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: #070710; position: relative;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: block; touch-action: none; cursor: crosshair; }
+        #tools {
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 100; background: rgba(0,0,0,0.45); padding: 8px; border-radius: 12px; backdrop-filter: blur(4px);
+        }
+        #tools button {
+            width: 46px; height: 46px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.22);
+            background: rgba(30,30,46,0.9); color: #e8e6f2; cursor: pointer; font-size: 19px;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.15s ease, border-color 0.15s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+        }
+        #tools button:hover { transform: scale(1.12); }
+        #tools button.active { border-color: #fff; border-width: 4px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="tools"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const BG='#070710', BGRGB=[7,7,16];
+
+        let W,H,DPR, paint, pctx;
+        function setup(){
+            DPR = Math.min(window.devicePixelRatio||1,2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width=W*DPR; canvas.height=H*DPR;
+            canvas.style.width=W+'px'; canvas.style.height=H+'px';
+            ctx.setTransform(DPR,0,0,DPR,0,0);
+            // persistente verflaag
+            paint=document.createElement('canvas'); paint.width=W*DPR; paint.height=H*DPR;
+            pctx=paint.getContext('2d'); pctx.setTransform(DPR,0,0,DPR,0,0);
+            pctx.fillStyle=BG; pctx.fillRect(0,0,W,H);
+            // muur-raster
+            CW=6; gw=Math.ceil(W/CW); gh=Math.ceil(H/CW); wall=new Uint8Array(gw*gh);
+        }
+        let CW,gw,gh,wall;
+        setup();
+        window.addEventListener('resize', ()=>{ const old=paint; setup(); }); // resize wist het doek
+
+        function wallAt(x,y){ const gx=(x/CW)|0, gy=(y/CW)|0; if(gx<0||gx>=gw||gy<0||gy>=gh)return false; return wall[gy*gw+gx]===1; }
+        function setWall(x,y,v){ const gx=(x/CW)|0, gy=(y/CW)|0; if(gx<0||gx>=gw||gy<0||gy>=gh)return; wall[gy*gw+gx]=v; }
+
+        // ---------- onderdelen ----------
+        const emitters=[]; // {x,y,hue}
+        const fans=[];     // {x,y,dx,dy}
+        const vortices=[]; // {x,y}
+        const wells=[];    // {x,y}
+        let placeHue=Math.random()*360;
+
+        // ---------- deeltjes ----------
+        const CAP=4500;
+        const px=new Float32Array(CAP), py=new Float32Array(CAP), vx=new Float32Array(CAP), vy=new Float32Array(CAP), ph=new Float32Array(CAP), pl=new Float32Array(CAP);
+        const alive=new Uint8Array(CAP);
+        const free=[]; for(let i=CAP-1;i>=0;i--) free.push(i);
+        function spawn(x,y,ivx,ivy,hue){ if(!free.length)return; const i=free.pop(); alive[i]=1; px[i]=x;py[i]=y;vx[i]=ivx;vy[i]=ivy;ph[i]=hue; pl[i]=220+Math.random()*240; }
+        function kill(i){ alive[i]=0; free.push(i); }
+
+        const G=0.10, RANGE=170, RANGE2=RANGE*RANGE;
+        const VR=130, VR2=VR*VR;   // vortex: kleinere reikwijdte
+        function update(){
+            // emit
+            for (const e of emitters){
+                for (let k=0;k<2;k++) spawn(e.x+(Math.random()-0.5)*4, e.y+(Math.random()-0.5)*4, (Math.random()-0.5)*0.6, (Math.random()-0.5)*0.6, e.hue);
+            }
+            for (let i=0;i<CAP;i++){
+                if (!alive[i]) continue;
+                // levensduur -> constante doorstroom, raakt nooit verstopt
+                pl[i]--; if (pl[i]<=0){ kill(i); continue; }
+                const lifeF = pl[i]<50 ? pl[i]/50 : 1;   // laatste 50 frames vervagen
+                let x=px[i], y=py[i], ux=vx[i], uy=vy[i];
+                uy += G;
+                // ventilatoren
+                for (const f of fans){ const dx=x-f.x, dy=y-f.y; const d2=dx*dx+dy*dy; if(d2<RANGE2){ const fall=1-Math.sqrt(d2)/RANGE; ux+=f.dx*fall*0.5; uy+=f.dy*fall*0.5; } }
+                // vortexen: doorstroom-werveling -> meezwieren en weer naar buiten slingeren (geen sink)
+                for (const v of vortices){ const dx=x-v.x, dy=y-v.y; const d2=dx*dx+dy*dy; if(d2<VR2 && d2>1){ const d=Math.sqrt(d2); const fall=1-d/VR; const out=0.28+(1-d/VR)*0.25; ux+=(-dy/d)*fall*0.85 + (dx/d)*out; uy+=(dx/d)*fall*0.85 + (dy/d)*out; } }
+                // putten: aantrekken op afstand, maar heel dichtbij afstoten -> slingeren i.p.v. verdwijnen
+                for (const w of wells){ const dx=w.x-x, dy=w.y-y; const d2=dx*dx+dy*dy; if(d2<RANGE2 && d2>1){ const d=Math.sqrt(d2); const fall=1-d/RANGE; let f=fall*0.55; if(d<22) f=-0.5*(1-d/22); ux+=(dx/d)*f; uy+=(dy/d)*f; } }
+                ux*=0.994; uy*=0.994;
+                // snelheid begrenzen
+                const sp=Math.hypot(ux,uy); if(sp>6.5){ ux=ux/sp*6.5; uy=uy/sp*6.5; }
+                // muur-botsing
+                let nx=x+ux, ny=y+uy;
+                if (wallAt(nx,ny)){
+                    if (wallAt(nx,y)) ux=-ux*0.45;
+                    if (wallAt(x,ny)) uy=-uy*0.45;
+                    nx=x+ux; ny=y+uy;
+                    if (wallAt(nx,ny)){ nx=x; ny=y; }
+                }
+                // verf neerleggen (trail in persistente laag), vervaagt mee met leven
+                pctx.globalCompositeOperation='lighter';
+                pctx.fillStyle='hsla('+(ph[i]|0)+',80%,55%,'+(0.17*lifeF)+')';
+                pctx.beginPath(); pctx.arc(nx,ny,1.6,0,6.283); pctx.fill();
+
+                px[i]=nx; py[i]=ny; vx[i]=ux; vy[i]=uy;
+                if (nx<-8||nx>W+8||ny>H+8||ny<-40) kill(i);
+            }
+            pctx.globalCompositeOperation='source-over';
+        }
+
+        // ---------- render ----------
+        function drawOverlay(){
+            // muren
+            ctx.fillStyle='rgba(150,150,170,0.5)';
+            for (let gy=0;gy<gh;gy++) for (let gx=0;gx<gw;gx++){ if(wall[gy*gw+gx]) ctx.fillRect(gx*CW,gy*CW,CW,CW); }
+            // onderdelen
+            for (const e of emitters){ ctx.fillStyle='hsl('+(e.hue|0)+',80%,60%)'; ctx.beginPath(); ctx.arc(e.x,e.y,6,0,6.283); ctx.fill();
+                ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(e.x,e.y,9,0,6.283); ctx.stroke(); }
+            ctx.lineWidth=3;
+            for (const f of fans){ ctx.strokeStyle='rgba(120,220,255,0.85)'; const m=Math.hypot(f.dx,f.dy)||1; const ex=f.x+f.dx/m*22, ey=f.y+f.dy/m*22;
+                ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(ex,ey); ctx.stroke();
+                ctx.beginPath(); ctx.arc(f.x,f.y,4,0,6.283); ctx.fillStyle='rgba(120,220,255,0.85)'; ctx.fill(); }
+            for (const v of vortices){ ctx.strokeStyle='rgba(190,140,255,0.85)'; ctx.beginPath(); for(let a=0;a<6.5;a+=0.3){ const r=2+a*2; const xx=v.x+Math.cos(a)*r, yy=v.y+Math.sin(a)*r; a===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy);} ctx.stroke(); }
+            for (const w of wells){ ctx.strokeStyle='rgba(255,180,120,0.85)'; ctx.beginPath(); ctx.arc(w.x,w.y,10,0,6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(w.x,w.y,4,0,6.283); ctx.stroke(); }
+        }
+        function render(){
+            ctx.globalCompositeOperation='source-over';
+            ctx.imageSmoothingEnabled=false;
+            ctx.drawImage(paint,0,0,W,H);
+            // levende koppen
+            ctx.globalCompositeOperation='lighter';
+            for (let i=0;i<CAP;i++){ if(!alive[i])continue; ctx.fillStyle='hsla('+(ph[i]|0)+',85%,65%,0.9)'; ctx.fillRect(px[i]-0.5,py[i]-0.5,1.6,1.6); }
+            ctx.globalCompositeOperation='source-over';
+            drawOverlay();
+        }
+
+        // ---------- gereedschap ----------
+        const T_EMIT=0,T_WALL=1,T_FAN=2,T_VORTEX=3,T_WELL=4,T_ERASE=5;
+        let tool=T_EMIT, paused=false;
+        let down=false, fanStart=null, sx=0, sy=0;
+        function pos(e){ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; }
+        function paintWalls(x,y,v){ for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++) setWall(x+dx*CW,y+dy*CW,v); }
+        function eraseAt(x,y){
+            paintWalls(x,y,0);
+            const r2=22*22;
+            [emitters,fans,vortices,wells].forEach(arr=>{ for(let i=arr.length-1;i>=0;i--){ const dx=arr[i].x-x,dy=arr[i].y-y; if(dx*dx+dy*dy<r2)arr.splice(i,1);} });
+        }
+        function onDown(e){ down=true; const p=pos(e); sx=p.x; sy=p.y;
+            if (tool===T_EMIT){ emitters.push({x:p.x,y:p.y,hue:placeHue}); placeHue=(placeHue+47)%360; }
+            else if (tool===T_VORTEX) vortices.push({x:p.x,y:p.y});
+            else if (tool===T_WELL) wells.push({x:p.x,y:p.y});
+            else if (tool===T_WALL) paintWalls(p.x,p.y,1);
+            else if (tool===T_ERASE) eraseAt(p.x,p.y);
+            else if (tool===T_FAN) fanStart={x:p.x,y:p.y};
+            e.preventDefault();
+        }
+        function onMove(e){ const p=pos(e); if(!down){return;}
+            if (tool===T_WALL) paintWalls(p.x,p.y,1);
+            else if (tool===T_ERASE) eraseAt(p.x,p.y);
+            e.preventDefault();
+        }
+        function onUp(e){ if(tool===T_FAN && fanStart){ const p=lastPos; let dx=p.x-fanStart.x, dy=p.y-fanStart.y; if(Math.hypot(dx,dy)<6){dx=0;dy=1;} fans.push({x:fanStart.x,y:fanStart.y,dx,dy}); fanStart=null; } down=false; }
+        let lastPos={x:0,y:0};
+        window.addEventListener('mousemove',e=>{ lastPos={x:e.clientX,y:e.clientY}; });
+        window.addEventListener('touchmove',e=>{ if(e.touches[0])lastPos={x:e.touches[0].clientX,y:e.touches[0].clientY}; },{passive:false});
+        canvas.addEventListener('mousedown',onDown);
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',onUp);
+        canvas.addEventListener('touchstart',onDown,{passive:false});
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',onUp);
+
+        // ---------- knoppen (cirkels, icoon, geen tekst) ----------
+        const toolsEl=document.getElementById('tools');
+        const TOOLS=[
+            {t:T_EMIT,g:'✷',title:'Emitter (verfbron)'},
+            {t:T_WALL,g:'▦',title:'Muur'},
+            {t:T_FAN,g:'➤',title:'Ventilator (sleep voor richting)'},
+            {t:T_VORTEX,g:'🌀',title:'Vortex'},
+            {t:T_WELL,g:'◎',title:'Zwaartekracht-put'},
+            {t:T_ERASE,g:'⌫',title:'Wis onderdeel/muur'},
+        ];
+        const tbtns=[];
+        TOOLS.forEach(o=>{ const b=document.createElement('button'); b.textContent=o.g; b.title=o.title;
+            if(o.t===tool)b.classList.add('active');
+            b.addEventListener('click',()=>{ tool=o.t; tbtns.forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
+            toolsEl.appendChild(b); tbtns.push(b); });
+        // doek wissen
+        const clr=document.createElement('button'); clr.textContent='🗑'; clr.title='Doek wissen';
+        clr.addEventListener('click',()=>{ pctx.fillStyle=BG; pctx.fillRect(0,0,W,H); });
+        toolsEl.appendChild(clr);
+        // pauze
+        const ps=document.createElement('button'); ps.textContent='⏸'; ps.title='Pauze';
+        ps.addEventListener('click',()=>{ paused=!paused; ps.textContent=paused?'▶':'⏸'; });
+        toolsEl.appendChild(ps);
+
+        // start met een emitter bovenin zodat er meteen iets stroomt
+        emitters.push({x:W*0.5, y:H*0.18, hue:placeHue}); placeHue=(placeHue+47)%360;
+
+        // ---------- loop ----------
+        function loop(){
+            if (!paused){
+                // heel trage vervaging zodat het doek blijft evolueren (en niet dichtklikt)
+                pctx.globalCompositeOperation='source-over';
+                pctx.fillStyle='rgba(7,7,16,0.012)';
+                pctx.fillRect(0,0,W,H);
+                update();
+            }
+            render();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
