@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Inkt</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: #000; position: relative; font-family: sans-serif; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; display: block; touch-action: none; cursor: crosshair; }
+        #info {
+            position: fixed; top: 14px; left: 14px; color: #fff; font-family: monospace; font-size: 12px;
+            background: rgba(0,0,0,0.45); padding: 8px 11px; border-radius: 6px; z-index: 1000; line-height: 1.5; pointer-events: none;
+        }
+        #tools {
+            position: fixed; top: 14px; right: 14px; z-index: 1000;
+            background: rgba(0,0,0,0.55); padding: 8px 10px; border-radius: 8px; color: #fff; font-size: 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        #tools label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        #tools button { border: none; border-radius: 6px; padding: 6px 10px; color: #fff; background: #3a4356; cursor: pointer; }
+        input[type=range] { width: 90px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="info">
+        <div>Inkt — sleep om te schilderen</div>
+        <div>Kleur mengt en stroomt</div>
+    </div>
+    <div id="tools">
+        <label><input type="checkbox" id="rainbow" checked> Regenboog</label>
+        <input type="range" id="hue" min="0" max="360" value="200">
+        <button id="clearBtn">🗑 Wis</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const SCALE = 7;
+        let W, H, DPR, sw, sh, N;
+        let vx, vy, tx, ty, dr, dg, db, t0;
+        let off, offCtx, img, data;
+
+        function setup() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W*DPR; canvas.height = H*DPR;
+            canvas.style.width = W+'px'; canvas.style.height = H+'px';
+            ctx.setTransform(DPR,0,0,DPR,0,0);
+
+            sw = Math.floor(W/SCALE); sh = Math.floor(H/SCALE); N = sw*sh;
+            vx=new Float32Array(N); vy=new Float32Array(N);
+            tx=new Float32Array(N); ty=new Float32Array(N);
+            dr=new Float32Array(N); dg=new Float32Array(N); db=new Float32Array(N);
+            t0=new Float32Array(N);
+
+            off=document.createElement('canvas'); off.width=sw; off.height=sh;
+            offCtx=off.getContext('2d');
+            img=offCtx.createImageData(sw,sh); data=img.data;
+        }
+        setup();
+        window.addEventListener('resize', setup);
+
+        function sample(f, x, y) {
+            if (x<0)x=0; else if (x>sw-1)x=sw-1;
+            if (y<0)y=0; else if (y>sh-1)y=sh-1;
+            const x0=x|0, y0=y|0;
+            const x1=x0<sw-1?x0+1:x0, y1=y0<sh-1?y0+1:y0;
+            const fx=x-x0, fy=y-y0;
+            const i00=x0+y0*sw, i10=x1+y0*sw, i01=x0+y1*sw, i11=x1+y1*sw;
+            const top=f[i00]*(1-fx)+f[i10]*fx;
+            const bot=f[i01]*(1-fx)+f[i11]*fx;
+            return top*(1-fy)+bot*fy;
+        }
+        function advect(dst, src, dt) {
+            for (let y=0;y<sh;y++) for (let x=0;x<sw;x++) {
+                const i=x+y*sw;
+                const px=x - vx[i]*dt;
+                const py=y - vy[i]*dt;
+                dst[i]=sample(src, px, py);
+            }
+        }
+
+        // ---- input ----
+        let down=false, lx=0, ly=0, hasInput=0;
+        let rainbow=true, hueVal=200, hue=0;
+
+        function pos(e){ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; }
+        function hslColor(h){
+            // h in 0..360 -> rgb 0..1 (vol verzadigd, helder)
+            const c=1, x=c*(1-Math.abs((h/60)%2-1));
+            let r,g,b;
+            if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}
+            else if(h<180){r=0;g=c;b=x;}else if(h<240){r=0;g=x;b=c;}
+            else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}
+            return [r,g,b];
+        }
+        function inject(cx, cy, fx, fy) {
+            const gx=cx/SCALE, gy=cy/SCALE;
+            const rad=4;
+            const [cr,cg,cb]=hslColor(rainbow?hue:hueVal);
+            for (let dy=-rad;dy<=rad;dy++) for (let dx=-rad;dx<=rad;dx++) {
+                const x=(gx+dx)|0, y=(gy+dy)|0;
+                if (x<0||x>=sw||y<0||y>=sh) continue;
+                const d2=dx*dx+dy*dy; if (d2>rad*rad) continue;
+                const i=x+y*sw;
+                const fall=1-Math.sqrt(d2)/rad;
+                vx[i]+=fx*0.15*fall; vy[i]+=fy*0.15*fall;
+                dr[i]+=cr*fall; dg[i]+=cg*fall; db[i]+=cb*fall;
+            }
+        }
+        function onDown(e){ down=true; const p=pos(e); lx=p.x; ly=p.y; hasInput=tnow; e.preventDefault(); }
+        function onMove(e){
+            const p=pos(e); hasInput=tnow;
+            if (down) { inject(p.x,p.y,(p.x-lx),(p.y-ly)); e.preventDefault(); }
+            lx=p.x; ly=p.y;
+        }
+        function onUp(){ down=false; }
+        canvas.addEventListener('mousedown',onDown);
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',onUp);
+        canvas.addEventListener('touchstart',onDown,{passive:false});
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',onUp);
+
+        document.getElementById('rainbow').addEventListener('change',e=>rainbow=e.target.checked);
+        document.getElementById('hue').addEventListener('input',e=>hueVal=+e.target.value);
+        document.getElementById('clearBtn').addEventListener('click',()=>{
+            vx.fill(0);vy.fill(0);dr.fill(0);dg.fill(0);db.fill(0);
+        });
+
+        // ---- loop ----
+        let tnow=0;
+        function loop(now){
+            tnow=now;
+            hue=(hue+1.5)%360;
+
+            // automatische 'levende' inktbronnen als je niks doet
+            if (now-hasInput>2000) {
+                const t=now*0.001;
+                inject(W*(0.5+0.35*Math.cos(t*0.5)), H*(0.5+0.32*Math.sin(t*0.4)),
+                       Math.cos(t*1.3)*12, Math.sin(t*1.1)*12);
+            }
+
+            // velocity zelf-advectie + demping
+            advect(tx, vx, 1.0); advect(ty, vy, 1.0);
+            vx.set(tx); vy.set(ty);
+            for (let i=0;i<N;i++){ vx[i]*=0.992; vy[i]*=0.992; }
+
+            // dye advectie
+            advect(t0, dr, 1.0); dr.set(t0);
+            advect(t0, dg, 1.0); dg.set(t0);
+            advect(t0, db, 1.0); db.set(t0);
+            for (let i=0;i<N;i++){ dr[i]*=0.992; dg[i]*=0.992; db[i]*=0.992; }
+
+            // render
+            for (let i=0;i<N;i++){
+                const p=i*4;
+                let r=dr[i], g=dg[i], b=db[i];
+                r=r>1?1:r; g=g>1?1:g; b=b>1?1:b;
+                data[p]=r*255; data[p+1]=g*255; data[p+2]=b*255; data[p+3]=255;
+            }
+            offCtx.putImageData(img,0,0);
+            ctx.imageSmoothingEnabled=true;
+            ctx.drawImage(off,0,0,W,H);
+
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

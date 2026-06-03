@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Groei</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: #000; position: relative; font-family: sans-serif; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; display: block; touch-action: none; cursor: crosshair; }
+        #info {
+            position: fixed; top: 14px; left: 14px; color: #fff; font-family: monospace; font-size: 12px;
+            background: rgba(0,0,0,0.45); padding: 8px 11px; border-radius: 6px; z-index: 1000; line-height: 1.5; pointer-events: none;
+        }
+        #tools {
+            position: fixed; top: 14px; right: 14px; z-index: 1000;
+            background: rgba(0,0,0,0.55); padding: 8px 10px; border-radius: 8px; color: #fff; font-size: 12px;
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 70vw; justify-content: flex-end;
+        }
+        #tools button { border: none; border-radius: 6px; padding: 6px 9px; color: #fff; background: #3a4356; cursor: pointer; }
+        #tools button.active { background: #5c7cfa; }
+        input[type=range] { width: 80px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="info">
+        <div>Groei — teken om te zaaien</div>
+        <div id="preTxt">Patroon: Koraal</div>
+    </div>
+    <div id="tools">
+        <span id="presets"></span>
+        <input type="range" id="hue" min="0" max="360" value="160" title="Kleur">
+        <button id="clearBtn">🗑</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const SCALE = 6;
+        let W, H, DPR, sw, sh, N;
+        let A, B, A2, B2;
+        let off, offCtx, img, data;
+
+        function setup() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W*DPR; canvas.height = H*DPR;
+            canvas.style.width = W+'px'; canvas.style.height = H+'px';
+            ctx.setTransform(DPR,0,0,DPR,0,0);
+
+            sw = Math.min(280, Math.floor(W/SCALE));
+            sh = Math.floor(sw * H / W);
+            N = sw*sh;
+            A=new Float32Array(N); B=new Float32Array(N);
+            A2=new Float32Array(N); B2=new Float32Array(N);
+            A.fill(1);
+            // wat zaad in het midden zodat het meteen leeft
+            seed(sw/2, sh/2, 8);
+
+            off=document.createElement('canvas'); off.width=sw; off.height=sh;
+            offCtx=off.getContext('2d');
+            img=offCtx.createImageData(sw,sh); data=img.data;
+        }
+
+        function seed(cx, cy, rad) {
+            for (let dy=-rad;dy<=rad;dy++) for (let dx=-rad;dx<=rad;dx++) {
+                const x=(cx+dx)|0, y=(cy+dy)|0;
+                if (x<1||x>=sw-1||y<1||y>=sh-1) continue;
+                if (dx*dx+dy*dy>rad*rad) continue;
+                B[x+y*sw]=1;
+            }
+        }
+        setup();
+        window.addEventListener('resize', setup);
+
+        // Gray-Scott parameters per patroon
+        const PRESETS = [
+            { name:'Koraal', f:0.0545, k:0.0620 },
+            { name:'Mitose', f:0.0367, k:0.0649 },
+            { name:'Stippen', f:0.0300, k:0.0620 },
+            { name:'Doolhof', f:0.0290, k:0.0570 },
+            { name:'Golven', f:0.0140, k:0.0450 }
+        ];
+        let preset = PRESETS[0];
+        const Da=1.0, Db=0.5, dt=1.0;
+
+        function stepRD() {
+            const f=preset.f, k=preset.k;
+            for (let y=1;y<sh-1;y++) {
+                for (let x=1;x<sw-1;x++) {
+                    const i=x+y*sw;
+                    const a=A[i], b=B[i];
+                    // Laplace via klassieke 3x3 kernel (orthogonaal 0.2, diagonaal 0.05, centrum -1)
+                    // -> stabiel bij Da=1.0 / dt=1.0
+                    const lapA = 0.2*(A[i-1]+A[i+1]+A[i-sw]+A[i+sw])
+                        + 0.05*(A[i-1-sw]+A[i+1-sw]+A[i-1+sw]+A[i+1+sw]) - a;
+                    const lapB = 0.2*(B[i-1]+B[i+1]+B[i-sw]+B[i+sw])
+                        + 0.05*(B[i-1-sw]+B[i+1-sw]+B[i-1+sw]+B[i+1+sw]) - b;
+                    const abb = a*b*b;
+                    let na = a + (Da*lapA - abb + f*(1-a))*dt;
+                    let nb = b + (Db*lapB + abb - (k+f)*b)*dt;
+                    // vastklemmen op [0,1] -> voorkomt wegdrijven/NaN bij veel zaaien
+                    na = na<0?0:na>1?1:na;
+                    nb = nb<0?0:nb>1?1:nb;
+                    if (na!==na) na=1;   // NaN-vangnet
+                    if (nb!==nb) nb=0;
+                    A2[i] = na;
+                    B2[i] = nb;
+                }
+            }
+            const ta=A; A=A2; A2=ta;
+            const tb=B; B=B2; B2=tb;
+        }
+
+        // ---- kleur ----
+        let hueVal=160;
+        function palette(v) {
+            // v in 0..1 -> kleur rond gekozen hue
+            const h=((hueVal + v*120)%360);
+            const s=0.75, l=0.08 + v*0.6;
+            return hsl(h,s,l);
+        }
+        function hsl(h,s,l){
+            const c=(1-Math.abs(2*l-1))*s;
+            const x=c*(1-Math.abs((h/60)%2-1));
+            const m=l-c/2; let r,g,b;
+            if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}
+            else if(h<180){r=0;g=c;b=x;}else if(h<240){r=0;g=x;b=c;}
+            else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}
+            return [(r+m)*255,(g+m)*255,(b+m)*255];
+        }
+
+        function render() {
+            for (let i=0;i<N;i++) {
+                let v=B[i]*2.2; if (v>1) v=1; if (v<0) v=0;
+                const [r,g,b]=palette(v);
+                const p=i*4;
+                data[p]=r; data[p+1]=g; data[p+2]=b; data[p+3]=255;
+            }
+            offCtx.putImageData(img,0,0);
+            ctx.imageSmoothingEnabled=true;
+            ctx.drawImage(off,0,0,W,H);
+        }
+
+        // ---- input ----
+        let down=false;
+        function pos(e){ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; }
+        function paintSeed(cx,cy){ seed((cx/W)*sw, (cy/H)*sh, 4); }
+        function onDown(e){ down=true; const p=pos(e); paintSeed(p.x,p.y); e.preventDefault(); }
+        function onMove(e){ if(!down)return; const p=pos(e); paintSeed(p.x,p.y); e.preventDefault(); }
+        function onUp(){ down=false; }
+        canvas.addEventListener('mousedown',onDown);
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',onUp);
+        canvas.addEventListener('touchstart',onDown,{passive:false});
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',onUp);
+
+        // ---- presets ui ----
+        const presetsEl=document.getElementById('presets');
+        const preTxt=document.getElementById('preTxt');
+        PRESETS.forEach((pr,idx)=>{
+            const b=document.createElement('button');
+            b.textContent=pr.name;
+            if (idx===0) b.classList.add('active');
+            b.addEventListener('click',()=>{
+                preset=pr; preTxt.textContent='Patroon: '+pr.name;
+                [...presetsEl.children].forEach(c=>c.classList.remove('active'));
+                b.classList.add('active');
+            });
+            presetsEl.appendChild(b);
+        });
+        document.getElementById('hue').addEventListener('input',e=>hueVal=+e.target.value);
+        document.getElementById('clearBtn').addEventListener('click',()=>{
+            A.fill(1); B.fill(0); seed(sw/2,sh/2,8);
+        });
+
+        // ---- loop ----
+        function loop(){
+            for (let s=0;s<6;s++) stepRD();   // meerdere iteraties = soepelere groei
+            render();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Levende wereld</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: #06101c; position: relative; font-family: sans-serif; }
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; display: block; touch-action: none; cursor: crosshair; }
+        #info {
+            position: fixed; top: 12px; left: 12px; color: #fff; font-family: monospace; font-size: 12px;
+            background: rgba(0,0,0,0.5); padding: 8px 11px; border-radius: 6px; z-index: 1000; line-height: 1.5; pointer-events: none;
+        }
+        #tools {
+            position: fixed; top: 12px; right: 12px; z-index: 1000; display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+        }
+        .panel {
+            background: rgba(0,0,0,0.55); padding: 6px 9px; border-radius: 8px; color: #fff; font-size: 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .panel label { display: flex; align-items: center; gap: 4px; }
+        .panel button, .panel select {
+            border: none; border-radius: 6px; padding: 5px 9px; font-size: 12px; color: #fff; background: #3a4356; cursor: pointer;
+        }
+        input[type=range] { width: 78px; }
+        #palette {
+            position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; z-index: 1000;
+            background: rgba(0,0,0,0.55); padding: 7px; border-radius: 10px; max-width: 96vw;
+        }
+        #palette button {
+            border: 2px solid transparent; border-radius: 7px; padding: 7px 11px; font-size: 12px; color: #fff; cursor: pointer; min-width: 56px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        #palette button.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="info">
+        <div>Levende wereld</div>
+        <div>Teken grond, water, zaad — laat het leven</div>
+        <div id="stat"></div>
+    </div>
+
+    <div id="tools">
+        <div class="panel">
+            <label>Zon <input type="range" id="sun" min="0" max="150" value="100"></label>
+            <label>Groei <input type="range" id="grow" min="0" max="200" value="100"></label>
+            <label>Regen <input type="range" id="rain" min="0" max="200" value="100"></label>
+        </div>
+        <div class="panel">
+            <label>Toon
+                <select id="view">
+                    <option value="normal">Normaal</option>
+                    <option value="moist">Vocht</option>
+                    <option value="light">Licht</option>
+                    <option value="nutr">Voeding</option>
+                </select>
+            </label>
+            <button id="rainBtn">🌧 Regen</button>
+            <button id="pauseBtn">⏸</button>
+            <button id="clearBtn">🗑</button>
+        </div>
+    </div>
+
+    <div id="palette"></div>
+
+    <script>
+        // ====================== CONFIG (tunen kan hier) ======================
+        const CFG = {
+            cell: 6,
+            diffMoist: 0.18, airDry: 0.985,
+            diffNutr: 0.08, nutrDry: 0.985,
+            germMoist: 0.22, germLight: 0.12,
+            growBase: 0.09, growCostM: 0.10, growCostN: 0.05, maxHeight: 30,
+            toLeafChance: 0.02, leafMinH: 4,
+            transpire: 0.010,
+            wilt: 0.10, stressMax: 220,
+            stemLife: 4200, leafLife: 3200, seedLife: 1600,
+            leafSeedEvery: 220, leafLight: 0.35,
+            decayTime: 520, decayFeed: 0.0025, deadToSoilNutr: 0.45,
+            ashFeed: 0.35,
+            soakChance: 0.12, evapBase: 0.010, evapLight: 0.40,
+            steamLife: 240, condense: 0.05, cloudTopFrac: 0.32,
+            rainThresh: 160, rainChance: 0.04, cloudDissipate: 0.004,
+            fireLife: 70, fireSpread: 0.10, fireSmoke: 0.12, fireToAsh: 0.35
+        };
+        let sunMul = 1, growMul = 1, rainMul = 1;
+
+        // ====================== Materialen ======================
+        const EMPTY=0, SOIL=1, WATER=2, STONE=3, SEED=4, STEM=5, LEAF=6,
+              DEAD=7, FIRE=8, SMOKE=9, STEAM=10, CLOUD=11, ASH=12;
+
+        const POWDER='p', LIQUID='l', GAS='g', STATIC='s', SPECIAL='x';
+        const cls=[], dens=[], absorb=[], flam=[];
+        function M(id,c,d,ab,fl){ cls[id]=c; dens[id]=d; absorb[id]=ab; flam[id]=fl||false; }
+        //   id      class    dens  lichtdoorlaat  brandbaar
+        M(EMPTY,  STATIC,  0,    0.998, false);
+        M(SOIL,   POWDER,  2.0,  0.0,   false);
+        M(WATER,  LIQUID,  1.0,  0.92,  false);
+        M(STONE,  STATIC,  99,   0.0,   false);
+        M(SEED,   POWDER,  1.2,  0.85,  true);
+        M(STEM,   STATIC,  99,   0.55,  true);
+        M(LEAF,   STATIC,  99,   0.40,  true);
+        M(DEAD,   POWDER,  0.8,  0.50,  true);
+        M(FIRE,   SPECIAL, 0,    0.90,  false);
+        M(SMOKE,  GAS,    -2,    0.90,  false);
+        M(STEAM,  GAS,    -2,    0.95,  false);
+        M(CLOUD,  SPECIAL, 0,    0.78,  false);
+        M(ASH,    POWDER,  0.5,  0.45,  false);
+
+        const MATERIALS = [
+            { id: SOIL,  label: 'Aarde', css: '#6b4a2f' },
+            { id: WATER, label: 'Water', css: '#3a78d2' },
+            { id: STONE, label: 'Steen', css: '#7a7a86' },
+            { id: SEED,  label: 'Zaad',  css: '#9acd32' },
+            { id: FIRE,  label: 'Vuur',  css: '#ff7a1a' },
+            { id: EMPTY, label: 'Gum',   css: '#1a2738' }
+        ];
+        let current = SEED;
+
+        // ====================== Grid + velden ======================
+        const CELL = CFG.cell;
+        let cols, rows, N, W, H, DPR;
+        let grid, moved, life, aux, stress;
+        let moist, moist2, nutr, nutr2, light;
+        let off, offCtx, img, data;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const paletteEl = document.getElementById('palette');
+
+        function setup() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W*DPR; canvas.height = H*DPR;
+            canvas.style.width = W+'px'; canvas.style.height = H+'px';
+            ctx.setTransform(DPR,0,0,DPR,0,0);
+
+            cols = Math.floor(W/CELL); rows = Math.floor(H/CELL); N = cols*rows;
+            grid=new Uint8Array(N); moved=new Uint8Array(N);
+            life=new Uint16Array(N); aux=new Uint8Array(N); stress=new Uint8Array(N);
+            moist=new Float32Array(N); moist2=new Float32Array(N);
+            nutr=new Float32Array(N); nutr2=new Float32Array(N);
+            light=new Float32Array(N);
+
+            off=document.createElement('canvas'); off.width=cols; off.height=rows;
+            offCtx=off.getContext('2d');
+            img=offCtx.createImageData(cols,rows); data=img.data;
+
+            initScene();
+        }
+
+        function initScene() {
+            grid.fill(EMPTY); life.fill(0); aux.fill(0); stress.fill(0);
+            moist.fill(0); nutr.fill(0); light.fill(1);
+            const ground = Math.floor(rows*0.72);
+            for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                const i=y*cols+x;
+                if (y>=ground) {
+                    grid[i]=SOIL;
+                    moist[i]=0.45 + Math.random()*0.1;
+                    nutr[i]=0.55 + Math.random()*0.1;
+                }
+            }
+            // een waterpoel
+            const pcx=Math.floor(cols*0.25), pw=Math.floor(cols*0.12);
+            for (let y=ground-4;y<ground;y++) for (let x=pcx-pw;x<pcx+pw;x++) {
+                if (x<0||x>=cols||y<0) continue;
+                grid[y*cols+x]=WATER; moist[y*cols+x]=1;
+            }
+            // wat zaadjes op de grond
+            for (let k=0;k<cols*0.4;k++) {
+                const x=(Math.random()*cols)|0;
+                const i=(ground-1)*cols+x;
+                if (grid[i]===EMPTY) { grid[i]=SEED; life[i]=0; }
+            }
+        }
+        setup();
+        window.addEventListener('resize', setup);
+
+        const rndi = n => (Math.random()*n)|0;
+        const clamp01 = v => v<0?0:v>1?1:v;
+
+        function swap(i,j){
+            const tg=grid[i],tl=life[i],ta=aux[i],ts=stress[i],tm=moist[i],tn=nutr[i];
+            grid[i]=grid[j];life[i]=life[j];aux[i]=aux[j];stress[i]=stress[j];moist[i]=moist[j];nutr[i]=nutr[j];
+            grid[j]=tg;life[j]=tl;aux[j]=ta;stress[j]=ts;moist[j]=tm;nutr[j]=tn;
+            moved[i]=1; moved[j]=1;
+        }
+
+        // ====================== Licht (van boven) ======================
+        function computeLight() {
+            for (let x=0;x<cols;x++) {
+                let l = sunMul;
+                for (let y=0;y<rows;y++) {
+                    const i=y*cols+x;
+                    light[i]=l;
+                    l*=absorb[grid[i]];
+                    if (l<0.001){ l=0; }
+                }
+            }
+        }
+
+        // ====================== Diffusie velden ======================
+        function diffuse(f, f2, coeff, dry) {
+            for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+                const i=y*cols+x; const m=grid[i];
+                if (m===STONE){ f2[i]=0; continue; }
+                if (f===moist && m===WATER){ f2[i]=1; continue; }
+                const c=f[i];
+                const l = x>0 && grid[i-1]!==STONE ? f[i-1] : c;
+                const r = x<cols-1 && grid[i+1]!==STONE ? f[i+1] : c;
+                const u = y>0 && grid[i-cols]!==STONE ? f[i-cols] : c;
+                const d = y<rows-1 && grid[i+cols]!==STONE ? f[i+cols] : c;
+                let v = c + coeff*(l+r+u+d-4*c);
+                if (m===EMPTY) v*=dry;       // lucht droogt langzaam
+                f2[i]=clamp01(v);
+            }
+            // swap
+            for (let i=0;i<N;i++) f[i]=f2[i];
+        }
+
+        // ====================== Beweging ======================
+        function canInto(d,t){ if(t===EMPTY)return true; const c=cls[t]; if(c===POWDER||c===LIQUID||c===GAS)return dens[t]<d; return false; }
+        function canRise(d,t){ if(t===EMPTY)return true; const c=cls[t]; if(c===POWDER||c===LIQUID||c===GAS)return dens[t]>d; return false; }
+
+        let wind=0;
+        function simulate() {
+            moved.fill(0);
+            for (let y=rows-1;y>=0;y--) {
+                const ltr=((y+frame)&1)===0;
+                for (let k=0;k<cols;k++) {
+                    const x=ltr?k:cols-1-k;
+                    const i=y*cols+x;
+                    if (moved[i]) continue;
+                    const m=grid[i];
+                    const c=cls[m];
+                    if (c===POWDER) movePowder(x,y,i,m);
+                    else if (c===LIQUID) moveLiquid(x,y,i,m);
+                    else if (c===GAS) moveGas(x,y,i,m);
+                    else if (m===CLOUD) moveCloud(x,y,i);
+                }
+            }
+        }
+        function movePowder(x,y,i,m){
+            const d=dens[m];
+            if (y+1<rows){
+                const b=i+cols;
+                if (canInto(d,grid[b])){ swap(i,b); return; }
+                const dir=Math.random()<0.5?-1:1;
+                for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canInto(d,grid[b+dx])){swap(i,b+dx);return;} }
+            }
+        }
+        function moveLiquid(x,y,i,m){
+            const d=dens[m];
+            if (y+1<rows){
+                const b=i+cols;
+                if (canInto(d,grid[b])){ swap(i,b); return; }
+                const dir=Math.random()<0.5?-1:1;
+                for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canInto(d,grid[b+dx])){swap(i,b+dx);return;} }
+            }
+            const dir=Math.random()<0.5?-1:1;
+            for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canInto(d,grid[i+dx])){swap(i,i+dx);return;} }
+        }
+        function moveGas(x,y,i,m){
+            const d=dens[m];
+            if (y>0){
+                const u=i-cols;
+                if (canRise(d,grid[u])){ swap(i,u); return; }
+                const dir=Math.random()<0.5?-1:1;
+                for (const dx of [dir,-dir]){ if(x+dx<0||x+dx>=cols)continue; if(canRise(d,grid[u+dx])){swap(i,u+dx);return;} }
+            }
+            if (Math.random()<0.25){ const dx=Math.random()<0.5?-1:1; if(x+dx>=0&&x+dx<cols&&grid[i+dx]===EMPTY)swap(i,i+dx); }
+        }
+        function moveCloud(x,y,i){
+            // drijft horizontaal met de wind, blijft op hoogte
+            if (Math.random()<0.25){
+                const dx = wind>0?1:-1;
+                if (x+dx>=0&&x+dx<cols&&grid[i+dx]===EMPTY){ swap(i,i+dx); return; }
+            }
+        }
+
+        // ====================== Biologie / reacties ======================
+        const N8=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+        function neighbor(x,y,...mats){
+            for (const [dx,dy] of N8){ const nx=x+dx,ny=y+dy; if(nx<0||nx>=cols||ny<0||ny>=rows)continue;
+                if (mats.includes(grid[ny*cols+nx])) return ny*cols+nx; }
+            return -1;
+        }
+
+        function biology() {
+            const topBand = rows*CFG.cloudTopFrac;
+            for (let y=0;y<rows;y++) {
+                for (let x=0;x<cols;x++) {
+                    const i=y*cols+x;
+                    const m=grid[i];
+                    switch (m) {
+                        case SEED: {
+                            life[i]++;
+                            const below = y+1<rows ? grid[i+cols] : STONE;
+                            if (below===SOIL && moist[i]>=CFG.germMoist && light[i]>=CFG.germLight) {
+                                grid[i]=STEM; aux[i]=0; life[i]=0; stress[i]=0;
+                            } else if (life[i]>CFG.seedLife && moist[i]<0.1) {
+                                grid[i]=EMPTY;
+                            }
+                            break;
+                        }
+                        case STEM: {
+                            life[i]++;
+                            // verdamping naar de lucht erboven (voedt wolken)
+                            if (y>0 && grid[i-cols]===EMPTY){ const t=CFG.transpire; moist[i]-=t; moist[i-cols]=clamp01(moist[i-cols]+t*0.8); }
+                            // droogtestress
+                            if (moist[i]<CFG.wilt) stress[i]=Math.min(255,stress[i]+1); else if(stress[i]>1) stress[i]-=2;
+                            if (stress[i]>CFG.stressMax || life[i]>CFG.stemLife) { grid[i]=DEAD; life[i]=0; break; }
+                            // groei naar boven (richting licht), kost vocht + voeding
+                            if (y>0 && grid[i-cols]===EMPTY) {
+                                const h=aux[i];
+                                const p = CFG.growBase*growMul * light[i-cols] * clamp01(moist[i]) *
+                                          (0.3+0.7*clamp01(nutr[i])) * (1 - h/CFG.maxHeight);
+                                if (Math.random()<p) {
+                                    const j=i-cols;
+                                    grid[j]=STEM; aux[j]=h+1; life[j]=0; stress[j]=0;
+                                    moist[j]=moist[i]; nutr[j]=nutr[i];
+                                    moist[i]=clamp01(moist[i]-CFG.growCostM);
+                                    nutr[i]=clamp01(nutr[i]-CFG.growCostN);
+                                } else if (h>=CFG.leafMinH && Math.random()<CFG.toLeafChance && light[i]>CFG.leafLight) {
+                                    grid[i]=LEAF; life[i]=0; aux[i]=0;
+                                }
+                            } else if (aux[i]>=CFG.leafMinH && grid[i-cols]!==STEM && grid[i-cols]!==LEAF && Math.random()<CFG.toLeafChance) {
+                                grid[i]=LEAF; life[i]=0; aux[i]=0;
+                            }
+                            break;
+                        }
+                        case LEAF: {
+                            life[i]++;
+                            if (y>0 && grid[i-cols]===EMPTY){ const t=CFG.transpire; moist[i]-=t; moist[i-cols]=clamp01(moist[i-cols]+t*0.8); }
+                            if (moist[i]<CFG.wilt || light[i]<0.05) stress[i]=Math.min(255,stress[i]+1); else if(stress[i]>1) stress[i]-=2;
+                            if (stress[i]>CFG.stressMax || life[i]>CFG.leafLife) { grid[i]=DEAD; life[i]=0; break; }
+                            // fotosynthese -> zaad
+                            if (light[i]>CFG.leafLight && moist[i]>0.18) {
+                                aux[i]=Math.min(255,aux[i]+1);
+                                if (aux[i]>=CFG.leafSeedEvery) {
+                                    aux[i]=0;
+                                    const dx=rndi(7)-3, dy=-1-rndi(3);
+                                    const nx=x+dx, ny=y+dy;
+                                    if (nx>=0&&nx<cols&&ny>=0&&grid[ny*cols+nx]===EMPTY){ grid[ny*cols+nx]=SEED; life[ny*cols+nx]=0; }
+                                }
+                            }
+                            break;
+                        }
+                        case DEAD: {
+                            life[i]++;
+                            // voedt de bodem eronder tijdens verrotten
+                            if (y+1<rows && grid[i+cols]===SOIL) nutr[i+cols]=clamp01(nutr[i+cols]+CFG.decayFeed);
+                            if (life[i]>CFG.decayTime) { grid[i]=SOIL; nutr[i]=clamp01(nutr[i]+CFG.deadToSoilNutr); moist[i]=clamp01(moist[i]+0.1); }
+                            break;
+                        }
+                        case WATER: {
+                            moist[i]=1;
+                            // inzakken in droge grond
+                            if (y+1<rows && grid[i+cols]===SOIL && moist[i+cols]<0.7 && Math.random()<CFG.soakChance) {
+                                grid[i]=EMPTY; moist[i+cols]=1; break;
+                            }
+                            // verdampen onder de zon
+                            if (y>0 && grid[i-cols]===EMPTY && light[i]>CFG.evapLight && Math.random()<CFG.evapBase*sunMul) {
+                                grid[i]=STEAM; life[i]=0;
+                            }
+                            break;
+                        }
+                        case STEAM: {
+                            life[i]++;
+                            if ((y<topBand || neighbor(x,y,CLOUD)>=0) && Math.random()<CFG.condense*rainMul) {
+                                grid[i]=CLOUD; life[i]=0; aux[i]=0;
+                            } else if (life[i]>CFG.steamLife) {
+                                grid[i]=EMPTY;
+                            }
+                            break;
+                        }
+                        case CLOUD: {
+                            life[i]+= (neighbor(x,y,STEAM,CLOUD)>=0?2:1);
+                            if (life[i]>CFG.rainThresh && Math.random()<CFG.rainChance*rainMul) {
+                                grid[i]=WATER; moist[i]=1; life[i]=0;     // regen!
+                            } else if (neighbor(x,y,CLOUD,STEAM)<0 && Math.random()<CFG.cloudDissipate) {
+                                grid[i]=EMPTY;
+                            }
+                            break;
+                        }
+                        case FIRE: {
+                            if (life[i]>0) life[i]--;
+                            // verspreiden naar brandbaar (minder kans bij vocht)
+                            for (const [dx,dy] of N8){
+                                const nx=x+dx,ny=y+dy; if(nx<0||nx>=cols||ny<0||ny>=rows)continue;
+                                const ni=ny*cols+nx;
+                                if (flam[grid[ni]] && Math.random()<CFG.fireSpread*(1-moist[ni])){ grid[ni]=FIRE; life[ni]=CFG.fireLife; }
+                                else if (grid[ni]===WATER){ grid[ni]=STEAM; life[ni]=0; grid[i]=EMPTY; }
+                            }
+                            if (grid[i]===FIRE){
+                                if (Math.random()<CFG.fireSmoke && y>0 && grid[i-cols]===EMPTY){ grid[i-cols]=SMOKE; life[i-cols]=40+rndi(25); }
+                                if (life[i]===0){ grid[i]=Math.random()<CFG.fireToAsh?ASH:EMPTY; if(grid[i]===ASH){life[i]=0;} }
+                            }
+                            break;
+                        }
+                        case SMOKE: {
+                            life[i]++;
+                            if (life[i]>70) grid[i]=EMPTY;
+                            break;
+                        }
+                        case ASH: {
+                            // zakt en bemest de grond
+                            if (y+1<rows && grid[i+cols]===SOIL && Math.random()<0.2){
+                                nutr[i+cols]=clamp01(nutr[i+cols]+CFG.ashFeed); grid[i]=EMPTY;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ====================== Render ======================
+        function skyRGB(y){
+            const t=y/rows;
+            return [ 8+10*(1-t), 18+14*(1-t), 34+18*(1-t) ];
+        }
+        function viewColor(i, mode){
+            if (mode==='moist'){ const v=moist[i]; return [30,30+v*120,80+v*175]; }
+            if (mode==='light'){ const v=Math.min(1,light[i]); return [v*255,v*255,v*200]; }
+            if (mode==='nutr'){ const v=nutr[i]; return [40+v*120,30+v*150,20]; }
+            return null;
+        }
+        function render() {
+            const mode=document.getElementById('view').value;
+            for (let i=0;i<N;i++){
+                const m=grid[i];
+                let r,g,b;
+                const vc = mode!=='normal' ? viewColor(i,mode) : null;
+                if (vc){ r=vc[0];g=vc[1];b=vc[2]; }
+                else switch (m) {
+                    case EMPTY: { const y=(i/cols)|0; const s=skyRGB(y); const lt=Math.min(1,light[i]); r=s[0]+lt*8; g=s[1]+lt*10; b=s[2]+lt*12; break; }
+                    case SOIL: { const w=moist[i], n=nutr[i]; r=120-w*45-n*20; g=80-w*30+n*10; b=46-w*16; break; }
+                    case WATER: r=42; g=110; b=205; break;
+                    case STONE: r=120; g=120; b=130; break;
+                    case SEED: r=150; g=190; b=70; break;
+                    case STEM: { const s=stress[i]/CFG.stressMax; r=70+s*70; g=120-s*40; b=50; break; }
+                    case LEAF: { const s=stress[i]/CFG.stressMax; r=50+s*120; g=175-s*70; b=55; break; }
+                    case DEAD: r=95; g=78; b=52; break;
+                    case FIRE: { const fl=Math.random()*40-20; r=255; g=120+fl; b=30; break; }
+                    case SMOKE: r=90; g=92; b=100; break;
+                    case STEAM: r=200; g=210; b=225; break;
+                    case CLOUD: { const sat=Math.min(1,life[i]/CFG.rainThresh); r=210-sat*60; g=215-sat*55; b=225-sat*40; break; }
+                    case ASH: r=70; g=70; b=74; break;
+                    default: r=0;g=0;b=0;
+                }
+                const p=i*4;
+                data[p]=r; data[p+1]=g; data[p+2]=b; data[p+3]=255;
+            }
+            offCtx.putImageData(img,0,0);
+            ctx.imageSmoothingEnabled=false;
+            ctx.drawImage(off,0,0,W,H);
+        }
+
+        // ====================== Input ======================
+        let painting=false, px=0, py=0, brush=4;
+        function pos(e){ const t=e.touches?e.touches[0]:e; return {x:t.clientX,y:t.clientY}; }
+        function paint(){
+            const gx=Math.floor(px/CELL), gy=Math.floor(py/CELL);
+            for (let dy=-brush;dy<=brush;dy++) for (let dx=-brush;dx<=brush;dx++){
+                if (dx*dx+dy*dy>brush*brush) continue;
+                const x=gx+dx, y=gy+dy;
+                if (x<0||x>=cols||y<0||y>=rows) continue;
+                const i=y*cols+x;
+                if (current===EMPTY){ grid[i]=EMPTY; life[i]=0; aux[i]=0; stress[i]=0; continue; }
+                if (current===WATER){ if(grid[i]===EMPTY||grid[i]===SOIL){ if(grid[i]===SOIL)moist[i]=1; else {grid[i]=WATER;moist[i]=1;} } continue; }
+                if (current===SEED){ if(grid[i]===EMPTY){ grid[i]=SEED; life[i]=0; } continue; }
+                if (current===FIRE){ if(flam[grid[i]]||grid[i]===EMPTY){ grid[i]=FIRE; life[i]=CFG.fireLife; } continue; }
+                if (current===SOIL){ grid[i]=SOIL; if(moist[i]<0.2)moist[i]=0.3; if(nutr[i]<0.3)nutr[i]=0.4; continue; }
+                grid[i]=current;
+            }
+        }
+        function onDown(e){ painting=true; const p=pos(e); px=p.x; py=p.y; paint(); e.preventDefault(); }
+        function onMove(e){ const p=pos(e); px=p.x; py=p.y; if(painting){ paint(); e.preventDefault(); } }
+        function onUp(){ painting=false; }
+        canvas.addEventListener('mousedown',onDown);
+        window.addEventListener('mousemove',onMove);
+        window.addEventListener('mouseup',onUp);
+        canvas.addEventListener('touchstart',onDown,{passive:false});
+        window.addEventListener('touchmove',onMove,{passive:false});
+        window.addEventListener('touchend',onUp);
+
+        // ====================== UI ======================
+        MATERIALS.forEach(mat=>{
+            const btn=document.createElement('button');
+            btn.textContent=mat.label; btn.style.background=mat.css;
+            btn.style.color=[SEED,FIRE].includes(mat.id)?'#1a1a1a':'#fff';
+            btn.dataset.id=mat.id;
+            if (mat.id===current) btn.classList.add('active');
+            btn.addEventListener('click',()=>{ current=mat.id; [...paletteEl.children].forEach(b=>b.classList.toggle('active',+b.dataset.id===mat.id)); });
+            paletteEl.appendChild(btn);
+        });
+        document.getElementById('sun').addEventListener('input',e=>sunMul=+e.target.value/100);
+        document.getElementById('grow').addEventListener('input',e=>growMul=+e.target.value/100);
+        document.getElementById('rain').addEventListener('input',e=>rainMul=+e.target.value/100);
+        let paused=false;
+        document.getElementById('pauseBtn').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+        document.getElementById('clearBtn').addEventListener('click',()=>initScene());
+        document.getElementById('rainBtn').addEventListener('click',()=>{
+            // strooi een wolkenlaag bovenin
+            const band=Math.floor(rows*0.12);
+            for (let y=band;y<band+3;y++) for (let x=0;x<cols;x++){ if(grid[y*cols+x]===EMPTY && Math.random()<0.6){ grid[y*cols+x]=CLOUD; life[y*cols+x]=CFG.rainThresh; } }
+        });
+
+        // ====================== Loop ======================
+        let frame=0;
+        const statEl=document.getElementById('stat');
+        function loop(){
+            if (!paused){
+                wind = Math.sin(frame*0.002);
+                computeLight();
+                diffuse(moist, moist2, CFG.diffMoist, CFG.airDry);
+                diffuse(nutr, nutr2, CFG.diffNutr, CFG.nutrDry);
+                simulate();
+                biology();
+                frame++;
+            }
+            render();
+            if ((frame&31)===0){
+                let plants=0,water=0,clouds=0;
+                for (let i=0;i<N;i++){ const m=grid[i]; if(m===STEM||m===LEAF)plants++; else if(m===WATER)water++; else if(m===CLOUD)clouds++; }
+                statEl.textContent = `🌱 ${plants}  💧 ${water}  ☁ ${clouds}`;
+            }
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
