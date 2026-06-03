@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Vissenzwerm 2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #06121f;
+            position: relative;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            display: block;
+            touch-action: none;
+        }
+
+        #info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 12px;
+            border-radius: 6px;
+            z-index: 1000;
+            max-width: 90%;
+            line-height: 1.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="info">
+        <div>Vissenzwerm 2 — <span id="count">0</span> vissen + roofvis</div>
+        <div>Beweeg muis / vinger: ze vluchten</div>
+        <div>Klik / tik: gooi voer</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const countEl = document.getElementById('count');
+
+        let W = 0, H = 0, DPR = 1;
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * DPR;
+            canvas.height = H * DPR;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // ---- Boids parameters ----
+        const NUM = Math.round(Math.min(170, Math.max(70, (W * H) / 11000)));
+        const MAX_SPEED = 230;
+        const MIN_SPEED = 90;
+        const MAX_FORCE = 320;
+        const PERCEPTION = 60;
+        const SEPARATION_R = 26;
+        const FLEE_R = 130;
+        const FOOD_R = 320;
+        const PREDATOR_FLEE_R = 200;
+
+        function limit(vx, vy, max) {
+            const m = Math.hypot(vx, vy);
+            if (m > max && m > 0) return [vx / m * max, vy / m * max];
+            return [vx, vy];
+        }
+
+        // ---- Vissen met diepte (parallax) ----
+        const fish = [];
+        function makeFish() {
+            const depth = Math.random();             // 0 = ver weg, 1 = vooraan
+            const hue = 175 + Math.random() * 65;     // blauw / cyaan / groen
+            return {
+                x: Math.random() * W,
+                y: Math.random() * H,
+                vx: (Math.random() - 0.5) * MAX_SPEED,
+                vy: (Math.random() - 0.5) * MAX_SPEED,
+                depth,
+                size: (4 + Math.random() * 3) * (0.55 + depth * 0.95),
+                speedMul: 0.55 + depth * 0.6,
+                hue,
+                sat: 55 + Math.random() * 30,
+                phase: Math.random() * Math.PI * 2
+            };
+        }
+        for (let i = 0; i < NUM; i++) fish.push(makeFish());
+        // sorteer op diepte zodat verre vissen achter de voorste getekend worden
+        fish.sort((a, b) => a.depth - b.depth);
+        countEl.textContent = fish.length;
+
+        // ---- Roofvis ----
+        const predator = {
+            x: W * 0.5, y: H * 0.5,
+            vx: 0, vy: 0,
+            size: 26,
+            hue: 18, sat: 70,
+            phase: 0,
+            target: null, retarget: 0
+        };
+        const PRED_MAX_SPEED = 200;
+        const PRED_MAX_FORCE = 260;
+
+        // ---- Pointer + voer ----
+        let pointer = { x: -9999, y: -9999, active: false };
+        const food = [];
+
+        function pos(e) {
+            const t = e.touches ? e.touches[0] : e;
+            return { x: t.clientX, y: t.clientY };
+        }
+        function onMove(e) {
+            const p = pos(e);
+            pointer.x = p.x; pointer.y = p.y; pointer.active = true;
+            e.preventDefault();
+        }
+        function onDown(e) {
+            const p = pos(e);
+            pointer.x = p.x; pointer.y = p.y; pointer.active = true;
+            food.push({ x: p.x, y: p.y, life: 6 });
+            e.preventDefault();
+        }
+        function onLeave() { pointer.active = false; }
+
+        window.addEventListener('mousemove', onMove);
+        canvas.addEventListener('mousedown', onDown);
+        canvas.addEventListener('mouseleave', onLeave);
+        canvas.addEventListener('touchstart', onDown, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onLeave);
+
+        // ---- Simulatie ----
+        function step(dt) {
+            for (const f of food) f.life -= dt;
+            for (let i = food.length - 1; i >= 0; i--) if (food[i].life <= 0) food.splice(i, 1);
+
+            for (const b of fish) {
+                let alignX = 0, alignY = 0, cohX = 0, cohY = 0, sepX = 0, sepY = 0;
+                let count = 0, sepCount = 0;
+
+                for (const o of fish) {
+                    if (o === b) continue;
+                    const dx = o.x - b.x;
+                    const dy = o.y - b.y;
+                    const d = Math.hypot(dx, dy);
+                    if (d < PERCEPTION) {
+                        alignX += o.vx; alignY += o.vy;
+                        cohX += o.x; cohY += o.y;
+                        count++;
+                        if (d < SEPARATION_R && d > 0) {
+                            sepX -= dx / d; sepY -= dy / d;
+                            sepCount++;
+                        }
+                    }
+                }
+
+                let ax = 0, ay = 0;
+
+                if (count > 0) {
+                    let [aX, aY] = limit(alignX / count, alignY / count, MAX_SPEED);
+                    ax += (aX - b.vx) * 1.0;
+                    ay += (aY - b.vy) * 1.0;
+                    const cx = cohX / count - b.x;
+                    const cy = cohY / count - b.y;
+                    let [cX, cY] = limit(cx, cy, MAX_SPEED);
+                    ax += (cX - b.vx) * 0.7;
+                    ay += (cY - b.vy) * 0.7;
+                }
+                if (sepCount > 0) {
+                    let [sX, sY] = limit(sepX, sepY, MAX_SPEED);
+                    ax += (sX - b.vx) * 1.8;
+                    ay += (sY - b.vy) * 1.8;
+                }
+
+                // vlucht voor pointer
+                if (pointer.active) {
+                    const dx = b.x - pointer.x, dy = b.y - pointer.y;
+                    const d = Math.hypot(dx, dy);
+                    if (d < FLEE_R && d > 0) {
+                        const s = (1 - d / FLEE_R);
+                        ax += (dx / d) * s * MAX_FORCE * 4;
+                        ay += (dy / d) * s * MAX_FORCE * 4;
+                    }
+                }
+
+                // vlucht voor de roofvis
+                {
+                    const dx = b.x - predator.x, dy = b.y - predator.y;
+                    const d = Math.hypot(dx, dy);
+                    if (d < PREDATOR_FLEE_R && d > 0) {
+                        const s = (1 - d / PREDATOR_FLEE_R);
+                        ax += (dx / d) * s * MAX_FORCE * 6;
+                        ay += (dy / d) * s * MAX_FORCE * 6;
+                    }
+                }
+
+                // aangetrokken door voer
+                let nearest = null, nd = FOOD_R;
+                for (const f of food) {
+                    const d = Math.hypot(f.x - b.x, f.y - b.y);
+                    if (d < nd) { nd = d; nearest = f; }
+                }
+                if (nearest) {
+                    const dx = nearest.x - b.x, dy = nearest.y - b.y;
+                    const d = Math.hypot(dx, dy) || 1;
+                    ax += (dx / d) * MAX_FORCE * 2.2;
+                    ay += (dy / d) * MAX_FORCE * 2.2;
+                }
+
+                [ax, ay] = limit(ax, ay, MAX_FORCE * 6);
+                b.vx += ax * dt;
+                b.vy += ay * dt;
+
+                const cap = MAX_SPEED * b.speedMul;
+                let sp = Math.hypot(b.vx, b.vy);
+                if (sp > cap) { b.vx = b.vx / sp * cap; b.vy = b.vy / sp * cap; }
+                else if (sp < MIN_SPEED * b.speedMul && sp > 0) {
+                    const lo = MIN_SPEED * b.speedMul;
+                    b.vx = b.vx / sp * lo; b.vy = b.vy / sp * lo;
+                }
+
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+
+                if (b.x < -20) b.x = W + 20;
+                if (b.x > W + 20) b.x = -20;
+                if (b.y < -20) b.y = H + 20;
+                if (b.y > H + 20) b.y = -20;
+            }
+
+            // ---- Roofvis: jaagt op de dichtstbijzijnde vis ----
+            predator.retarget -= dt;
+            if (!predator.target || predator.retarget <= 0) {
+                let best = null, bd = Infinity;
+                for (const b of fish) {
+                    const d = Math.hypot(b.x - predator.x, b.y - predator.y);
+                    if (d < bd) { bd = d; best = b; }
+                }
+                predator.target = best;
+                predator.retarget = 1.2;
+            }
+            if (predator.target) {
+                const dx = predator.target.x - predator.x;
+                const dy = predator.target.y - predator.y;
+                const d = Math.hypot(dx, dy) || 1;
+                let ax = (dx / d) * PRED_MAX_FORCE;
+                let ay = (dy / d) * PRED_MAX_FORCE;
+                predator.vx += ax * dt;
+                predator.vy += ay * dt;
+                let sp = Math.hypot(predator.vx, predator.vy);
+                if (sp > PRED_MAX_SPEED) {
+                    predator.vx = predator.vx / sp * PRED_MAX_SPEED;
+                    predator.vy = predator.vy / sp * PRED_MAX_SPEED;
+                }
+                predator.x += predator.vx * dt;
+                predator.y += predator.vy * dt;
+                if (predator.x < -40) predator.x = W + 40;
+                if (predator.x > W + 40) predator.x = -40;
+                if (predator.y < -40) predator.y = H + 40;
+                if (predator.y > H + 40) predator.y = -40;
+            }
+        }
+
+        // ---- Tekenen ----
+        // Kronkelend lijf: een ruggengraat met een sinusgolf, breder bij de kop.
+        function drawSwimmer(x, y, vx, vy, size, fill, phase, t) {
+            const angle = Math.atan2(vy, vx);
+            const speed = Math.hypot(vx, vy);
+            const L = size * 3.4;
+            const segs = 9;
+            const freq = 6 + speed * 0.015;
+            const amp = size * 0.55;
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.fillStyle = fill;
+
+            const top = [], bot = [];
+            let endLat = 0;
+            for (let i = 0; i <= segs; i++) {
+                const u = i / segs;
+                const px = -u * L;
+                const lateral = Math.sin(phase + t * freq - u * 5) * amp * (0.2 + u * 1.1);
+                if (i === segs) endLat = lateral;
+                const w = size * 0.95 * Math.sin(Math.PI * Math.min(1, 0.08 + u * 0.9));
+                top.push([px, lateral - w]);
+                bot.push([px, lateral + w]);
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(top[0][0], top[0][1]);
+            for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+            for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]);
+            ctx.closePath();
+            ctx.fill();
+
+            // staartvin, beweegt mee met het uiteinde
+            const finSwing = Math.sin(phase + t * freq - 5) * amp * 0.9;
+            ctx.beginPath();
+            ctx.moveTo(-L, endLat);
+            ctx.lineTo(-L - size * 1.5, endLat + finSwing - size * 1.1);
+            ctx.lineTo(-L - size * 1.5, endLat + finSwing + size * 1.1);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function draw(t) {
+            ctx.fillStyle = '#06121f';
+            ctx.fillRect(0, 0, W, H);
+
+            // voer
+            for (const f of food) {
+                ctx.globalAlpha = Math.max(0, Math.min(1, f.life / 2));
+                ctx.fillStyle = '#ffd866';
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // vissen van ver (donker/doorzichtig) naar dichtbij (helder)
+            for (const b of fish) {
+                const light = 32 + b.depth * 34;
+                const alpha = 0.45 + b.depth * 0.55;
+                drawSwimmer(b.x, b.y, b.vx, b.vy, b.size,
+                    `hsla(${b.hue}, ${b.sat}%, ${light}%, ${alpha})`, b.phase, t);
+            }
+
+            // roofvis bovenop
+            drawSwimmer(predator.x, predator.y, predator.vx, predator.vy, predator.size,
+                `hsl(${predator.hue}, ${predator.sat}%, 52%)`, predator.phase, t);
+            // oogje
+            ctx.save();
+            ctx.translate(predator.x, predator.y);
+            ctx.rotate(Math.atan2(predator.vy, predator.vx));
+            ctx.fillStyle = '#06121f';
+            ctx.beginPath();
+            ctx.arc(predator.size * 0.6, -predator.size * 0.25, predator.size * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        let last = performance.now();
+        function loop(now) {
+            let dt = (now - last) / 1000;
+            last = now;
+            if (dt > 0.05) dt = 0.05;
+            step(dt);
+            draw(now / 1000);
+            requestAnimationFrame(loop);
+        }
+        ctx.fillStyle = '#06121f';
+        ctx.fillRect(0, 0, W, H);
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

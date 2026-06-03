@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Kompas</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #0a1018;
+            position: relative;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            display: block;
+            touch-action: none;
+        }
+
+        #info {
+            position: fixed;
+            top: 20px; left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 12px;
+            border-radius: 6px;
+            z-index: 1000;
+            max-width: 90%;
+            line-height: 1.6;
+            pointer-events: none;
+        }
+
+        #info b { font-size: 14px; }
+
+        #request-permission {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            font-family: sans-serif;
+            z-index: 2000;
+            max-width: 80%;
+        }
+
+        #request-permission button {
+            margin-top: 15px;
+            padding: 12px 24px;
+            background: #5c7cfa;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="request-permission" style="display: none;">
+        <h2>Kompas aanzetten</h2>
+        <p>Geef toegang tot de bewegingssensoren om het noorden te vinden.</p>
+        <button onclick="requestPermission()">Geef toestemming</button>
+    </div>
+
+    <div id="info">
+        <div><b id="cardinal">—</b> · <span id="deg">—</span>°</div>
+        <div id="levelTxt">Houd je toestel recht</div>
+        <div id="hint" style="opacity:.7">Deeltjes stromen naar het noorden</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const cardinalEl = document.getElementById('cardinal');
+        const degEl = document.getElementById('deg');
+        const levelTxt = document.getElementById('levelTxt');
+        const hintEl = document.getElementById('hint');
+
+        let W, H, DPR;
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W * DPR; canvas.height = H * DPR;
+            canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // ---- Sensor-toestand ----
+        let heading = 0;     // graden, kloksgewijs vanaf noord
+        let beta = 0, gamma = 0;
+        let sensorActive = false;
+
+        function startListening() {
+            window.addEventListener('deviceorientation', (e) => {
+                let h = null;
+                if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+                else if (e.alpha != null) h = 360 - e.alpha;
+                if (h != null) heading = h;
+                beta = e.beta || 0;
+                gamma = e.gamma || 0;
+                sensorActive = true;
+            }, true);
+        }
+
+        async function requestPermission() {
+            try {
+                const p = await DeviceOrientationEvent.requestPermission();
+                document.getElementById('request-permission').style.display = 'none';
+                if (p === 'granted') startListening();
+            } catch (err) {
+                document.getElementById('request-permission').style.display = 'none';
+            }
+        }
+
+        if (typeof DeviceOrientationEvent !== 'undefined') {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                document.getElementById('request-permission').style.display = 'block';
+            } else {
+                startListening();
+            }
+        }
+
+        // ---- Muis-fallback (desktop, geen sensor) ----
+        let mx = W / 2, my = H / 2;
+        window.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; });
+        function fallback() {
+            heading = (mx / W) * 360;
+            gamma = (mx / W * 2 - 1) * 40;
+            beta = (my / H * 2 - 1) * 40;
+        }
+
+        // ---- Deeltjes ----
+        const COUNT = Math.round(Math.min(260, Math.max(120, (W * H) / 7000)));
+        const particles = [];
+        for (let i = 0; i < COUNT; i++) {
+            particles.push({ x: Math.random() * W, y: Math.random() * H, len: 8 + Math.random() * 10 });
+        }
+
+        function cardinalName(deg) {
+            const dirs = ['N', 'NO', 'O', 'ZO', 'Z', 'ZW', 'W', 'NW'];
+            return dirs[Math.round(deg / 45) % 8];
+        }
+
+        function loop() {
+            if (!sensorActive) fallback();
+
+            const hRad = heading * Math.PI / 180;
+            // schermvector die naar het noorden wijst
+            const nx = -Math.sin(hRad);
+            const ny = -Math.cos(hRad);
+
+            // tilt -> drift (kantel je toestel, dan glijden de deeltjes weg)
+            const tiltX = Math.max(-1, Math.min(1, gamma / 35));
+            const tiltY = Math.max(-1, Math.min(1, beta / 35));
+            const tiltMag = Math.hypot(tiltX, tiltY);
+            const level = tiltMag < 0.14;
+
+            const flow = 0.7;       // basisstroom naar noord
+            const tiltForce = 2.6;
+
+            ctx.fillStyle = '#0a1018';
+            ctx.fillRect(0, 0, W, H);
+
+            // kleur: groen als je recht houdt, anders cyaan->oranje bij meer tilt
+            const baseHue = level ? 140 : (190 - tiltMag * 160);
+            const stroke = `hsla(${baseHue}, 80%, 60%, 0.9)`;
+
+            ctx.lineWidth = 1.5;
+            ctx.lineCap = 'round';
+            for (const p of particles) {
+                p.x += nx * flow + tiltX * tiltForce;
+                p.y += ny * flow + tiltY * tiltForce;
+                // wrap
+                if (p.x < -20) p.x = W + 20;
+                if (p.x > W + 20) p.x = -20;
+                if (p.y < -20) p.y = H + 20;
+                if (p.y > H + 20) p.y = -20;
+
+                ctx.strokeStyle = stroke;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x + nx * p.len, p.y + ny * p.len);
+                ctx.stroke();
+                // kopje (noord-punt)
+                ctx.fillStyle = stroke;
+                ctx.beginPath();
+                ctx.arc(p.x + nx * p.len, p.y + ny * p.len, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            drawCompass(nx, ny, level);
+
+            // info
+            const d = ((heading % 360) + 360) % 360;
+            cardinalEl.textContent = cardinalName(d);
+            degEl.textContent = Math.round(d);
+            if (level) {
+                levelTxt.textContent = '✓ Recht!';
+                levelTxt.style.color = '#7CFFB0';
+            } else {
+                levelTxt.textContent = 'Houd je toestel recht';
+                levelTxt.style.color = '#fff';
+            }
+            hintEl.textContent = sensorActive ? 'Draai rond tot N bovenaan staat' : 'Geen sensor — beweeg de muis';
+
+            requestAnimationFrame(loop);
+        }
+
+        // grote naald + waterpas in het midden
+        function drawCompass(nx, ny, level) {
+            const cx = W / 2, cy = H / 2;
+            const R = Math.min(W, H) * 0.18;
+
+            // ring
+            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, R, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // noord-naald (rood) en zuid (wit)
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#ff4d4d';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + nx * R, cy + ny * R);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx - nx * R, cy - ny * R);
+            ctx.stroke();
+
+            // N-label aan de noordpunt
+            ctx.fillStyle = '#ff6b6b';
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('N', cx + nx * (R + 16), cy + ny * (R + 16));
+
+            // waterpas: bel drijft weg bij kantelen
+            const tiltX = Math.max(-1, Math.min(1, gamma / 35));
+            const tiltY = Math.max(-1, Math.min(1, beta / 35));
+            const br = 26;
+            ctx.strokeStyle = level ? '#7CFFB0' : 'rgba(255,255,255,0.35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, br, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = level ? '#7CFFB0' : '#ffd866';
+            ctx.beginPath();
+            ctx.arc(cx + tiltX * br * 0.7, cy + tiltY * br * 0.7, 6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        loop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Vallend zand</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #06121f;
+            position: relative;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            display: block;
+            touch-action: none;
+            cursor: crosshair;
+        }
+
+        #info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 12px;
+            border-radius: 6px;
+            z-index: 1000;
+            max-width: 90%;
+            line-height: 1.5;
+            pointer-events: none;
+        }
+
+        #palette {
+            position: fixed;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px;
+            border-radius: 10px;
+            font-family: sans-serif;
+        }
+
+        #palette button {
+            border: 2px solid transparent;
+            border-radius: 7px;
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #fff;
+            cursor: pointer;
+            min-width: 56px;
+        }
+
+        #palette button.active {
+            border-color: #fff;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="info">
+        <div>Vallend zand</div>
+        <div>Teken met muis / vinger</div>
+        <div>Kies een materiaal hieronder (of toets 1-6)</div>
+    </div>
+
+    <div id="palette"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const paletteEl = document.getElementById('palette');
+
+        // ---- Materialen ----
+        const EMPTY = 0, SAND = 1, WATER = 2, STONE = 3, WOOD = 4, FIRE = 5, SMOKE = 6;
+        const FIRE_LIFE = 70;
+
+        const MATERIALS = [
+            { id: SAND, label: 'Zand', css: '#c8b274', key: '1' },
+            { id: WATER, label: 'Water', css: '#3a78d2', key: '2' },
+            { id: STONE, label: 'Steen', css: '#7a7a86', key: '3' },
+            { id: WOOD, label: 'Hout', css: '#6e4628', key: '4' },
+            { id: FIRE, label: 'Vuur', css: '#ff7a1a', key: '5' },
+            { id: EMPTY, label: 'Gum', css: '#1a2738', key: '6' }
+        ];
+        let current = SAND;
+
+        // ---- Grid ----
+        const CELL = 4;
+        let cols, rows, grid, shade, life, moved;
+        let W, H, DPR;
+        let off, offCtx, imgData, data;
+
+        function setup() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * DPR;
+            canvas.height = H * DPR;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            ctx.imageSmoothingEnabled = false;
+
+            cols = Math.floor(W / CELL);
+            rows = Math.floor(H / CELL);
+            grid = new Uint8Array(cols * rows);
+            shade = new Uint8Array(cols * rows);
+            life = new Uint8Array(cols * rows);
+            moved = new Uint8Array(cols * rows);
+
+            off = document.createElement('canvas');
+            off.width = cols;
+            off.height = rows;
+            offCtx = off.getContext('2d');
+            imgData = offCtx.createImageData(cols, rows);
+            data = imgData.data;
+        }
+        setup();
+        window.addEventListener('resize', setup);
+
+        const rnd = () => (Math.random() * 256) | 0;
+
+        function swap(i, j) {
+            const tg = grid[i], ts = shade[i], tl = life[i];
+            grid[i] = grid[j]; shade[i] = shade[j]; life[i] = life[j];
+            grid[j] = tg; shade[j] = ts; life[j] = tl;
+            moved[i] = 1; moved[j] = 1;
+        }
+
+        // ---- Simulatie ----
+        const N8 = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+        let frame = 0;
+
+        function simulate() {
+            moved.fill(0);
+            for (let y = rows - 1; y >= 0; y--) {
+                const ltr = ((y + frame) & 1) === 0;
+                for (let k = 0; k < cols; k++) {
+                    const x = ltr ? k : cols - 1 - k;
+                    const i = y * cols + x;
+                    if (moved[i]) continue;
+                    const m = grid[i];
+                    if (m === EMPTY || m === STONE || m === WOOD) continue;
+                    if (m === SAND) updateSand(x, y, i);
+                    else if (m === WATER) updateWater(x, y, i);
+                    else if (m === FIRE) updateFire(x, y, i);
+                    else if (m === SMOKE) updateSmoke(x, y, i);
+                }
+            }
+            frame++;
+        }
+
+        function updateSand(x, y, i) {
+            if (y + 1 < rows) {
+                const b = i + cols;
+                if (grid[b] === EMPTY || grid[b] === WATER) { swap(i, b); return; }
+                const dir = Math.random() < 0.5 ? -1 : 1;
+                for (const dx of [dir, -dir]) {
+                    const nx = x + dx;
+                    if (nx < 0 || nx >= cols) continue;
+                    const ni = b + dx;
+                    if (grid[ni] === EMPTY || grid[ni] === WATER) { swap(i, ni); return; }
+                }
+            }
+        }
+
+        function updateWater(x, y, i) {
+            if (y + 1 < rows) {
+                const b = i + cols;
+                if (grid[b] === EMPTY) { swap(i, b); return; }
+                const dir = Math.random() < 0.5 ? -1 : 1;
+                for (const dx of [dir, -dir]) {
+                    const nx = x + dx;
+                    if (nx < 0 || nx >= cols) continue;
+                    if (grid[b + dx] === EMPTY) { swap(i, b + dx); return; }
+                }
+            }
+            // horizontaal uitvloeien
+            const dir = Math.random() < 0.5 ? -1 : 1;
+            for (const dx of [dir, -dir]) {
+                const nx = x + dx;
+                if (nx < 0 || nx >= cols) continue;
+                const ni = i + dx;
+                if (grid[ni] === EMPTY) { swap(i, ni); return; }
+            }
+        }
+
+        function updateFire(x, y, i) {
+            // contact met water => dooft, water wordt stoom
+            for (const [dx, dy] of N8) {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+                const ni = ny * cols + nx;
+                if (grid[ni] === WATER) {
+                    grid[ni] = SMOKE; life[ni] = 45; shade[ni] = rnd();
+                    grid[i] = EMPTY; life[i] = 0;
+                    return;
+                }
+            }
+            // ontsteek aangrenzend hout
+            for (const [dx, dy] of N8) {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+                const ni = ny * cols + nx;
+                if (grid[ni] === WOOD && Math.random() < 0.08) {
+                    grid[ni] = FIRE; life[ni] = 45 + (Math.random() * 45 | 0); shade[ni] = rnd();
+                }
+            }
+            // rook erboven
+            if (y > 0 && grid[i - cols] === EMPTY && Math.random() < 0.12) {
+                grid[i - cols] = SMOKE; life[i - cols] = 40 + (Math.random() * 30 | 0); shade[i - cols] = rnd();
+                moved[i - cols] = 1;
+            }
+            if (life[i] > 0) life[i]--;
+            if (life[i] === 0) {
+                grid[i] = Math.random() < 0.35 ? SMOKE : EMPTY;
+                if (grid[i] === SMOKE) life[i] = 35 + (Math.random() * 25 | 0);
+            }
+        }
+
+        function updateSmoke(x, y, i) {
+            if (life[i] > 0) life[i]--;
+            if (life[i] === 0) { grid[i] = EMPTY; return; }
+            if (y > 0) {
+                const u = i - cols;
+                if (grid[u] === EMPTY) { swap(i, u); return; }
+                const dir = Math.random() < 0.5 ? -1 : 1;
+                for (const dx of [dir, -dir]) {
+                    const nx = x + dx;
+                    if (nx < 0 || nx >= cols) continue;
+                    if (grid[u + dx] === EMPTY) { swap(i, u + dx); return; }
+                }
+            }
+            // af en toe zijwaarts driften
+            if (Math.random() < 0.2) {
+                const dx = Math.random() < 0.5 ? -1 : 1;
+                const nx = x + dx;
+                if (nx >= 0 && nx < cols && grid[i + dx] === EMPTY) swap(i, i + dx);
+            }
+        }
+
+        // ---- Tekenen ----
+        function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+        function render() {
+            for (let i = 0; i < grid.length; i++) {
+                const m = grid[i];
+                let r, g, b;
+                const v = (shade[i] - 128);
+                switch (m) {
+                    case EMPTY: r = 6; g = 18; b = 31; break;
+                    case SAND: r = clamp(200 + v * 0.18); g = clamp(178 + v * 0.18); b = clamp(116 + v * 0.18); break;
+                    case WATER: r = clamp(42 + v * 0.1); g = clamp(112 + v * 0.12); b = clamp(205 + v * 0.1); break;
+                    case STONE: r = clamp(118 + v * 0.2); g = clamp(118 + v * 0.2); b = clamp(128 + v * 0.2); break;
+                    case WOOD: r = clamp(112 + v * 0.15); g = clamp(72 + v * 0.13); b = clamp(42 + v * 0.1); break;
+                    case FIRE: {
+                        const t = life[i] / FIRE_LIFE;
+                        const fl = (Math.random() * 40 - 20);
+                        r = 255; g = clamp(70 + t * 170 + fl); b = clamp(t * 50);
+                        break;
+                    }
+                    case SMOKE: {
+                        const a = Math.min(1, life[i] / 45) * 0.65;
+                        r = clamp(6 + (150 - 6) * a); g = clamp(18 + (150 - 18) * a); b = clamp(31 + (160 - 31) * a);
+                        break;
+                    }
+                    default: r = 6; g = 18; b = 31;
+                }
+                const p = i * 4;
+                data[p] = r; data[p + 1] = g; data[p + 2] = b; data[p + 3] = 255;
+            }
+            offCtx.putImageData(imgData, 0, 0);
+            ctx.drawImage(off, 0, 0, W, H);
+        }
+
+        // ---- Input ----
+        let painting = false, px = 0, py = 0;
+        const BRUSH = 4; // straal in cellen
+
+        function pos(e) {
+            const t = e.touches ? e.touches[0] : e;
+            return { x: t.clientX, y: t.clientY };
+        }
+        function paint() {
+            const gx = Math.floor(px / CELL), gy = Math.floor(py / CELL);
+            for (let dy = -BRUSH; dy <= BRUSH; dy++) {
+                for (let dx = -BRUSH; dx <= BRUSH; dx++) {
+                    if (dx * dx + dy * dy > BRUSH * BRUSH) continue;
+                    const x = gx + dx, y = gy + dy;
+                    if (x < 0 || x >= cols || y < 0 || y >= rows) continue;
+                    const i = y * cols + x;
+                    if (current === EMPTY) { grid[i] = EMPTY; life[i] = 0; continue; }
+                    if (current === SAND || current === WATER) {
+                        if (grid[i] === EMPTY && Math.random() < 0.55) { grid[i] = current; shade[i] = rnd(); }
+                    } else {
+                        grid[i] = current; shade[i] = rnd();
+                        if (current === FIRE) life[i] = FIRE_LIFE;
+                    }
+                }
+            }
+        }
+        function onDown(e) { painting = true; const p = pos(e); px = p.x; py = p.y; paint(); e.preventDefault(); }
+        function onMove(e) { const p = pos(e); px = p.x; py = p.y; if (painting) paint(); e.preventDefault(); }
+        function onUp() { painting = false; }
+
+        canvas.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        canvas.addEventListener('touchstart', onDown, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onUp);
+
+        // ---- Palet ----
+        function buildPalette() {
+            MATERIALS.forEach(mat => {
+                const btn = document.createElement('button');
+                btn.textContent = mat.label;
+                btn.style.background = mat.css;
+                if (mat.id === EMPTY) btn.style.color = '#fff';
+                if (mat.id === SAND || mat.id === FIRE) btn.style.color = '#1a1a1a';
+                btn.dataset.id = mat.id;
+                if (mat.id === current) btn.classList.add('active');
+                btn.addEventListener('click', () => selectMat(mat.id));
+                paletteEl.appendChild(btn);
+            });
+        }
+        function selectMat(id) {
+            current = id;
+            [...paletteEl.children].forEach(b => b.classList.toggle('active', +b.dataset.id === id));
+        }
+        buildPalette();
+        window.addEventListener('keydown', e => {
+            const mat = MATERIALS.find(m => m.key === e.key);
+            if (mat) selectMat(mat.id);
+        });
+
+        // ---- Loop ----
+        function loop() {
+            simulate();
+            if (painting) paint(); // continue stroom terwijl ingedrukt
+            render();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

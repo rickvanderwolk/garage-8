@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Ballenbak</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #0f0f1e;
+            position: relative;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            display: block;
+            touch-action: none;
+        }
+
+        #info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 12px;
+            border-radius: 6px;
+            z-index: 1000;
+            max-width: 90%;
+            line-height: 1.5;
+            pointer-events: none;
+        }
+
+        #request-permission {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            font-family: sans-serif;
+            z-index: 2000;
+            max-width: 80%;
+        }
+
+        #request-permission button {
+            margin-top: 15px;
+            padding: 12px 24px;
+            background: #5c7cfa;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #request-permission button:hover {
+            background: #4c6ef5;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="request-permission" style="display: none;">
+        <h2>Kantel-besturing</h2>
+        <p>Geef toegang tot de bewegingssensoren om de ballenbak te kantelen.</p>
+        <button onclick="requestPermission()">Geef toestemming</button>
+    </div>
+
+    <div id="info">
+        <div>Ballenbak — <span id="count">0</span> ballen</div>
+        <div>Klik / tik om ballen toe te voegen</div>
+        <div>Beweeg de cursor om te duwen · kantel je toestel</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const countEl = document.getElementById('count');
+
+        let W = 0, H = 0, DPR = 1;
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * DPR;
+            canvas.height = H * DPR;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // Zwaartekracht (px/s^2). Standaard naar beneden; kantelen stuurt de richting.
+        const G = 1400;
+        let gravX = 0, gravY = G;
+        const restitution = 0.6;   // stuiterfactor tegen muren
+        const ballRestitution = 0.85; // stuiterfactor tussen ballen
+        const friction = 0.999;
+        const MAX_BALLS = 140;
+
+        const balls = [];
+
+        function randColor() {
+            const hue = Math.floor(Math.random() * 360);
+            return `hsl(${hue}, 75%, 60%)`;
+        }
+
+        function addBall(x, y, r) {
+            if (balls.length >= MAX_BALLS) balls.shift();
+            r = r || (14 + Math.random() * 22);
+            balls.push({
+                x, y, r,
+                vx: (Math.random() - 0.5) * 200,
+                vy: (Math.random() - 0.5) * 200,
+                color: randColor(),
+                mass: r * r
+            });
+            countEl.textContent = balls.length;
+        }
+
+        // Start met een handvol ballen
+        for (let i = 0; i < 30; i++) {
+            addBall(Math.random() * W, Math.random() * H * 0.5);
+        }
+
+        // ---- Input: muis / touch ----
+        // De cursor duwt ballen weg waar hij is — geen klik nodig.
+        let pointer = { x: 0, y: 0, px: 0, py: 0, active: false };
+
+        function pointerPos(e) {
+            const t = e.touches ? e.touches[0] : e;
+            return { x: t.clientX, y: t.clientY };
+        }
+
+        function onMove(e) {
+            const p = pointerPos(e);
+            pointer.px = pointer.x;
+            pointer.py = pointer.y;
+            pointer.x = p.x;
+            pointer.y = p.y;
+            pointer.active = true;
+            e.preventDefault();
+        }
+        function onDown(e) {
+            const p = pointerPos(e);
+            pointer.px = pointer.x = p.x;
+            pointer.py = pointer.y = p.y;
+            pointer.active = true;
+            addBall(p.x, p.y);
+            e.preventDefault();
+        }
+        function onLeave() {
+            pointer.active = false;
+        }
+
+        canvas.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        canvas.addEventListener('mouseleave', onLeave);
+        canvas.addEventListener('touchstart', onDown, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onLeave);
+
+        // ---- Input: device tilt ----
+        function applyTilt(beta, gamma) {
+            // gamma: links/rechts (-90..90), beta: voor/achter (-180..180)
+            const gx = Math.max(-1, Math.min(1, gamma / 45));
+            const gy = Math.max(-1, Math.min(1, beta / 45));
+            gravX = gx * G;
+            gravY = gy * G;
+        }
+
+        function startListening() {
+            window.addEventListener('deviceorientation', (event) => {
+                if (event.beta === null && event.gamma === null) return;
+                applyTilt(event.beta || 0, event.gamma || 0);
+            });
+        }
+
+        async function requestPermission() {
+            try {
+                const perm = await DeviceOrientationEvent.requestPermission();
+                document.getElementById('request-permission').style.display = 'none';
+                if (perm === 'granted') startListening();
+            } catch (err) {
+                document.getElementById('request-permission').style.display = 'none';
+            }
+        }
+
+        if (typeof DeviceOrientationEvent !== 'undefined') {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                document.getElementById('request-permission').style.display = 'block';
+            } else {
+                startListening();
+            }
+        }
+
+        // ---- Fysica ----
+        function step(dt) {
+            // Muis duwt ballen weg als je sleept
+            const dragVX = (pointer.x - pointer.px);
+            const dragVY = (pointer.y - pointer.py);
+
+            for (const b of balls) {
+                b.vx += gravX * dt;
+                b.vy += gravY * dt;
+
+                if (pointer.active) {
+                    const dx = b.x - pointer.x;
+                    const dy = b.y - pointer.y;
+                    const dist = Math.hypot(dx, dy);
+                    const reach = 120;
+                    if (dist < reach && dist > 0.001) {
+                        const force = (1 - dist / reach);
+                        b.vx += (dx / dist) * force * 900 * dt + dragVX * force * 6;
+                        b.vy += (dy / dist) * force * 900 * dt + dragVY * force * 6;
+                    }
+                }
+
+                b.vx *= friction;
+                b.vy *= friction;
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+            }
+
+            // Bal-bal botsingen
+            for (let i = 0; i < balls.length; i++) {
+                const a = balls[i];
+                for (let j = i + 1; j < balls.length; j++) {
+                    const b = balls[j];
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = a.r + b.r;
+                    if (dist < minDist && dist > 0.0001) {
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+                        const overlap = minDist - dist;
+                        const totalMass = a.mass + b.mass;
+                        // Duw uit elkaar (verdeeld over massa)
+                        a.x -= nx * overlap * (b.mass / totalMass);
+                        a.y -= ny * overlap * (b.mass / totalMass);
+                        b.x += nx * overlap * (a.mass / totalMass);
+                        b.y += ny * overlap * (a.mass / totalMass);
+                        // Impuls langs normaal
+                        const rvx = b.vx - a.vx;
+                        const rvy = b.vy - a.vy;
+                        const velAlong = rvx * nx + rvy * ny;
+                        if (velAlong < 0) {
+                            const imp = -(1 + ballRestitution) * velAlong / totalMass;
+                            a.vx -= imp * b.mass * nx;
+                            a.vy -= imp * b.mass * ny;
+                            b.vx += imp * a.mass * nx;
+                            b.vy += imp * a.mass * ny;
+                        }
+                    }
+                }
+            }
+
+            // Muren
+            for (const b of balls) {
+                if (b.x - b.r < 0) { b.x = b.r; b.vx = -b.vx * restitution; }
+                if (b.x + b.r > W) { b.x = W - b.r; b.vx = -b.vx * restitution; }
+                if (b.y - b.r < 0) { b.y = b.r; b.vy = -b.vy * restitution; }
+                if (b.y + b.r > H) { b.y = H - b.r; b.vy = -b.vy * restitution; }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            for (const b of balls) {
+                // Lichte glans voor diepte
+                const grad = ctx.createRadialGradient(
+                    b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.1,
+                    b.x, b.y, b.r
+                );
+                grad.addColorStop(0, 'rgba(255,255,255,0.55)');
+                grad.addColorStop(0.25, b.color);
+                grad.addColorStop(1, b.color);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let last = performance.now();
+        function loop(now) {
+            let dt = (now - last) / 1000;
+            last = now;
+            if (dt > 0.05) dt = 0.05; // clamp na tab-switch
+            // sub-steps voor stabielere botsingen
+            const sub = 2;
+            for (let s = 0; s < sub; s++) step(dt / sub);
+            draw();
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

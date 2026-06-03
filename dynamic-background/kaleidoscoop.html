@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Kaleidoscoop</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            position: relative;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            display: block;
+            touch-action: none;
+        }
+
+        #info {
+            position: fixed;
+            top: 20px; left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.45);
+            padding: 10px 12px;
+            border-radius: 6px;
+            z-index: 1000;
+            max-width: 90%;
+            line-height: 1.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="info">
+        <div>Kaleidoscoop — <span id="seg">8</span> segmenten</div>
+        <div>Beweeg muis / vinger om te tekenen</div>
+        <div>Toets +/− voor meer/minder segmenten</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const segEl = document.getElementById('seg');
+
+        let W, H, DPR, cx, cy;
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W * DPR; canvas.height = H * DPR;
+            canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+            cx = W / 2; cy = H / 2;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, W, H);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        let segments = 8;
+        let hue = 0;
+
+        // huidige & vorige positie t.o.v. het midden
+        let curX = 0, curY = 0, prevX = 0, prevY = 0;
+        let lastInput = -9999;
+        let started = false;
+
+        function setPoint(x, y) {
+            prevX = curX; prevY = curY;
+            curX = x - cx; curY = y - cy;
+            if (!started) { prevX = curX; prevY = curY; started = true; }
+        }
+
+        function pos(e) {
+            const t = e.touches ? e.touches[0] : e;
+            return { x: t.clientX, y: t.clientY };
+        }
+        function onMove(e) {
+            const p = pos(e);
+            setPoint(p.x, p.y);
+            lastInput = tNow;
+            e.preventDefault();
+        }
+        window.addEventListener('mousemove', onMove);
+        canvas.addEventListener('touchstart', onMove, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '+' || e.key === '=') segments = Math.min(20, segments + 1);
+            if (e.key === '-' || e.key === '_') segments = Math.max(3, segments - 1);
+            segEl.textContent = segments;
+        });
+
+        // teken de lijn gespiegeld over alle segmenten
+        function drawMirrored(ax, ay, bx, by, width, color) {
+            const step = (Math.PI * 2) / segments;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.lineCap = 'round';
+            for (let i = 0; i < segments; i++) {
+                const rot = i * step;
+                const cos = Math.cos(rot), sin = Math.sin(rot);
+                // origineel
+                let a1x = ax * cos - ay * sin, a1y = ax * sin + ay * cos;
+                let b1x = bx * cos - by * sin, b1y = bx * sin + by * cos;
+                ctx.beginPath();
+                ctx.moveTo(cx + a1x, cy + a1y);
+                ctx.lineTo(cx + b1x, cy + b1y);
+                ctx.stroke();
+                // gespiegeld (reflectie over de as) voor echt kaleidoscoop-effect
+                let a2x = ax * cos + ay * sin, a2y = ax * sin - ay * cos;
+                let b2x = bx * cos + by * sin, b2y = bx * sin - by * cos;
+                ctx.beginPath();
+                ctx.moveTo(cx + a2x, cy + a2y);
+                ctx.lineTo(cx + b2x, cy + b2y);
+                ctx.stroke();
+            }
+        }
+
+        let tNow = 0;
+        function loop(now) {
+            tNow = now;
+
+            // automatische beweging als er even niks gebeurt (levende achtergrond)
+            if (now - lastInput > 1800) {
+                const t = now * 0.001;
+                const r = Math.min(W, H) * 0.36;
+                const ax = Math.cos(t * 0.7) + 0.4 * Math.cos(t * 2.3);
+                const ay = Math.sin(t * 0.9) + 0.4 * Math.sin(t * 1.7);
+                setPoint(cx + ax * r * 0.7, cy + ay * r * 0.7);
+            }
+
+            // zachte fade zodat oude lijnen langzaam vervagen
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.035)';
+            ctx.fillRect(0, 0, W, H);
+
+            const dx = curX - prevX, dy = curY - prevY;
+            const speed = Math.hypot(dx, dy);
+            hue = (hue + 1.5) % 360;
+            const dist = Math.hypot(curX, curY);
+            const sat = 85;
+            const lum = 55 + Math.min(25, speed * 0.4);
+            const width = 2 + Math.min(10, speed * 0.25);
+            const color = `hsl(${(hue + dist * 0.3) % 360}, ${sat}%, ${lum}%)`;
+
+            if (speed > 0.5 && speed < 200) {
+                drawMirrored(prevX, prevY, curX, curY, width, color);
+            }
+            prevX = curX; prevY = curY;
+
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamic Background - Vissenzwerm</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #06121f;
+            position: relative;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            display: block;
+            touch-action: none;
+        }
+
+        #info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 12px;
+            border-radius: 6px;
+            z-index: 1000;
+            max-width: 90%;
+            line-height: 1.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="info">
+        <div>Vissenzwerm — <span id="count">0</span> vissen</div>
+        <div>Beweeg muis / vinger: ze vluchten</div>
+        <div>Klik / tik: gooi voer (ze komen erop af)</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const countEl = document.getElementById('count');
+
+        let W = 0, H = 0, DPR = 1;
+        function resize() {
+            DPR = Math.min(window.devicePixelRatio || 1, 2);
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W * DPR;
+            canvas.height = H * DPR;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // ---- Boids parameters ----
+        const NUM = Math.round(Math.min(220, Math.max(80, (W * H) / 9000)));
+        const MAX_SPEED = 230;
+        const MIN_SPEED = 90;
+        const MAX_FORCE = 320;
+        const PERCEPTION = 60;       // buren-radius voor alignment/cohesion
+        const SEPARATION_R = 26;     // afstand houden
+        const FLEE_R = 130;          // vlucht-radius rond pointer
+        const FOOD_R = 320;          // aantrekkings-radius van voer
+
+        function limit(vx, vy, max) {
+            const m = Math.hypot(vx, vy);
+            if (m > max && m > 0) return [vx / m * max, vy / m * max];
+            return [vx, vy];
+        }
+
+        const fish = [];
+        function spawn() {
+            const hue = 180 + Math.random() * 60; // blauw/cyaan/groen tinten
+            fish.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                vx: (Math.random() - 0.5) * MAX_SPEED,
+                vy: (Math.random() - 0.5) * MAX_SPEED,
+                size: 5 + Math.random() * 4,
+                color: `hsl(${hue}, ${60 + Math.random() * 30}%, ${55 + Math.random() * 15}%)`
+            });
+        }
+        for (let i = 0; i < NUM; i++) spawn();
+        countEl.textContent = fish.length;
+
+        // ---- Pointer + voer ----
+        let pointer = { x: -9999, y: -9999, active: false };
+        const food = []; // {x, y, life}
+
+        function pos(e) {
+            const t = e.touches ? e.touches[0] : e;
+            return { x: t.clientX, y: t.clientY };
+        }
+        function onMove(e) {
+            const p = pos(e);
+            pointer.x = p.x; pointer.y = p.y; pointer.active = true;
+            e.preventDefault();
+        }
+        function onDown(e) {
+            const p = pos(e);
+            pointer.x = p.x; pointer.y = p.y; pointer.active = true;
+            food.push({ x: p.x, y: p.y, life: 6 });
+            e.preventDefault();
+        }
+        function onLeave() { pointer.active = false; }
+
+        window.addEventListener('mousemove', onMove);
+        canvas.addEventListener('mousedown', onDown);
+        canvas.addEventListener('mouseleave', onLeave);
+        canvas.addEventListener('touchstart', onDown, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onLeave);
+
+        // ---- Simulatie ----
+        function step(dt) {
+            // voer veroudert
+            for (const f of food) f.life -= dt;
+            for (let i = food.length - 1; i >= 0; i--) if (food[i].life <= 0) food.splice(i, 1);
+
+            for (const b of fish) {
+                let alignX = 0, alignY = 0;
+                let cohX = 0, cohY = 0;
+                let sepX = 0, sepY = 0;
+                let count = 0, sepCount = 0;
+
+                for (const o of fish) {
+                    if (o === b) continue;
+                    const dx = o.x - b.x;
+                    const dy = o.y - b.y;
+                    const d = Math.hypot(dx, dy);
+                    if (d < PERCEPTION) {
+                        alignX += o.vx; alignY += o.vy;
+                        cohX += o.x; cohY += o.y;
+                        count++;
+                        if (d < SEPARATION_R && d > 0) {
+                            sepX -= dx / d; sepY -= dy / d;
+                            sepCount++;
+                        }
+                    }
+                }
+
+                let ax = 0, ay = 0;
+
+                if (count > 0) {
+                    // alignment
+                    let [aX, aY] = limit(alignX / count, alignY / count, MAX_SPEED);
+                    ax += (aX - b.vx) * 1.0;
+                    ay += (aY - b.vy) * 1.0;
+                    // cohesion
+                    const cx = cohX / count - b.x;
+                    const cy = cohY / count - b.y;
+                    let [cX, cY] = limit(cx, cy, MAX_SPEED);
+                    ax += (cX - b.vx) * 0.7;
+                    ay += (cY - b.vy) * 0.7;
+                }
+                if (sepCount > 0) {
+                    let [sX, sY] = limit(sepX, sepY, MAX_SPEED);
+                    ax += (sX - b.vx) * 1.8;
+                    ay += (sY - b.vy) * 1.8;
+                }
+
+                // vlucht voor pointer
+                if (pointer.active) {
+                    const dx = b.x - pointer.x;
+                    const dy = b.y - pointer.y;
+                    const d = Math.hypot(dx, dy);
+                    if (d < FLEE_R && d > 0) {
+                        const strength = (1 - d / FLEE_R);
+                        ax += (dx / d) * strength * MAX_FORCE * 4;
+                        ay += (dy / d) * strength * MAX_FORCE * 4;
+                    }
+                }
+
+                // aangetrokken door voer
+                let nearest = null, nd = FOOD_R;
+                for (const f of food) {
+                    const d = Math.hypot(f.x - b.x, f.y - b.y);
+                    if (d < nd) { nd = d; nearest = f; }
+                }
+                if (nearest) {
+                    const dx = nearest.x - b.x;
+                    const dy = nearest.y - b.y;
+                    const d = Math.hypot(dx, dy) || 1;
+                    ax += (dx / d) * MAX_FORCE * 2.2;
+                    ay += (dy / d) * MAX_FORCE * 2.2;
+                }
+
+                // beperk stuurkracht en integreer
+                [ax, ay] = limit(ax, ay, MAX_FORCE * 6);
+                b.vx += ax * dt;
+                b.vy += ay * dt;
+
+                // snelheidsgrenzen
+                let sp = Math.hypot(b.vx, b.vy);
+                if (sp > MAX_SPEED) { b.vx = b.vx / sp * MAX_SPEED; b.vy = b.vy / sp * MAX_SPEED; }
+                else if (sp < MIN_SPEED && sp > 0) { b.vx = b.vx / sp * MIN_SPEED; b.vy = b.vy / sp * MIN_SPEED; }
+
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+
+                // wrap rond de randen
+                if (b.x < -10) b.x = W + 10;
+                if (b.x > W + 10) b.x = -10;
+                if (b.y < -10) b.y = H + 10;
+                if (b.y > H + 10) b.y = -10;
+            }
+        }
+
+        function drawFish(b) {
+            const angle = Math.atan2(b.vy, b.vx);
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(angle);
+            const s = b.size;
+            ctx.fillStyle = b.color;
+            // lijfje
+            ctx.beginPath();
+            ctx.moveTo(s * 1.6, 0);
+            ctx.quadraticCurveTo(0, s, -s * 1.2, 0);
+            ctx.quadraticCurveTo(0, -s, s * 1.6, 0);
+            ctx.fill();
+            // staartje
+            ctx.beginPath();
+            ctx.moveTo(-s * 1.2, 0);
+            ctx.lineTo(-s * 2.1, s * 0.8);
+            ctx.lineTo(-s * 2.1, -s * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.fillStyle = '#06121f';
+            ctx.fillRect(0, 0, W, H);
+
+            for (const f of food) {
+                ctx.globalAlpha = Math.max(0, Math.min(1, f.life / 2));
+                ctx.fillStyle = '#ffd866';
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            for (const b of fish) drawFish(b);
+        }
+
+        let last = performance.now();
+        function loop(now) {
+            let dt = (now - last) / 1000;
+            last = now;
+            if (dt > 0.05) dt = 0.05;
+            step(dt);
+            draw();
+            requestAnimationFrame(loop);
+        }
+        // achtergrond eerst vullen zodat de fade-trail klopt
+        ctx.fillStyle = '#06121f';
+        ctx.fillRect(0, 0, W, H);
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
