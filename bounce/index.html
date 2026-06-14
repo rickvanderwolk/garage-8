@@ -47,12 +47,12 @@
 <body>
 <div id="flash"></div>
 <div id="banner"></div>
-<div id="score">0 &nbsp;:&nbsp; 0</div>
+<div id="score">0</div>
 <div id="hint">move your mouse or drag &mdash; left/right and up/down</div>
 <button id="pauseBtn" title="Pause / resume (space)">II</button>
 <div id="overlay">
   <div class="title">BOUNCE</div>
-  <div class="sub" id="overlaySub">first to 7 wins &mdash; press space or tap to start</div>
+  <div class="sub" id="overlaySub">press space or tap to start</div>
 </div>
 <script type="importmap">
 { "imports": { "three": "./three.module.js" } }
@@ -200,22 +200,32 @@ scene.add(net);
 // --- Moving obstacles: the ball bounces off these ---
 const OBS_COLOR = 0xb070ff;
 const obstacles = [];
-function makeObstacle(x, y, z, w, h, d, axis, amp, speed, phase) {
+function makeObstacle(x, y, z, w, h, d, axis, amp, speed, phase, fromWave) {
   const m = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
     new THREE.MeshStandardMaterial({ color: OBS_COLOR, emissive: OBS_COLOR, emissiveIntensity: 0.5, roughness: 0.3, transparent: true, opacity: 0.5 })
   );
   m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: OBS_COLOR })));
   scene.add(m);
-  const o = { mesh: m, base: new THREE.Vector3(x, y, z), half: new THREE.Vector3(w/2, h/2, d/2), axis, amp, speed, phase };
+  const o = { mesh: m, base: new THREE.Vector3(x, y, z), half: new THREE.Vector3(w/2, h/2, d/2), axis, amp, speed, phase, fromWave, active: true };
   m.position.copy(o.base);
   obstacles.push(o);
 }
-// Two horizontal bars sliding left/right, one vertical bar gliding up/down.
-// Kept away from the centre so they never sit on the ball's serve point.
-makeObstacle(0, 0,  6, 4, 1.2, 1, new THREE.Vector3(1, 0, 0), 5, 0.0009, 0);
-makeObstacle(0, 0, -6, 4, 1.2, 1, new THREE.Vector3(1, 0, 0), 5, 0.0011, 1.6);
-makeObstacle(5, 0,  0, 1, 4,   1, new THREE.Vector3(0, 1, 0), 3, 0.0013, 0.8);
+// A pool of obstacles that reveal themselves as the waves climb. The first few
+// are active from the start; the rest switch on at higher waves (see setWave).
+// All kept off-centre so they never sit on the ball's serve point.
+makeObstacle(0,  0,  6, 4, 1.2, 1, new THREE.Vector3(1, 0, 0), 5, 0.0009, 0,   1);
+makeObstacle(0,  0, -6, 4, 1.2, 1, new THREE.Vector3(1, 0, 0), 5, 0.0011, 1.6, 1);
+makeObstacle(5,  0,  0, 1, 4,   1, new THREE.Vector3(0, 1, 0), 3, 0.0013, 0.8, 1);
+makeObstacle(-5, 0,  0, 1, 4,   1, new THREE.Vector3(0, 1, 0), 3, 0.0015, 2.0, 2);
+makeObstacle(0,  3,  3, 3, 1,   1, new THREE.Vector3(1, 0, 0), 4, 0.0010, 0.5, 3);
+makeObstacle(0, -3, -3, 3, 1,   1, new THREE.Vector3(1, 0, 0), 4, 0.0012, 2.5, 4);
+
+// Reveal obstacles for the current wave (called when a wave starts).
+function setWave(w) {
+  wave = w;
+  for (const o of obstacles) { o.active = w >= o.fromWave; o.mesh.visible = o.active; }
+}
 
 // --- Paddles (translucent with a bright neon edge) ---
 function makePaddle(color) {
@@ -276,7 +286,7 @@ function resetBall(dir) {
 function launchBall() {
   const angle = (Math.random() - 0.5) * 0.7;
   const elev = (Math.random() - 0.5) * 0.5;
-  const speed = 0.42;
+  const speed = Math.min(0.41 + (wave - 1) * 0.045, 0.78); // faster each wave
   vel.set(Math.sin(angle) * speed, elev * speed, serveDir * Math.cos(angle) * speed);
   beep(660, 0.07); // serve blip
 }
@@ -335,27 +345,37 @@ function addShake(amount) { shake = Math.min(1.2, shake + amount); }
 // --- Flash on impact ---
 function flash(mesh) { mesh.material.emissiveIntensity = 2.2; }
 
-// --- Score & difficulty (0 = easy start, ramps to 1 over the match) ---
-const WIN_SCORE = 7; // first to this many points wins
-let scorePlayer = 0, scoreAI = 0;
-let difficulty = 0;
-function rampDifficulty() { difficulty = Math.min(1, difficulty + 0.05); }
+// --- Endless score-attack state ---
+const MAX_LIVES = 4;   // starting lives (a life is lost each time the AI scores)
+const WAVE_EVERY = 4;  // points between waves
+let score = 0;         // current run score
+let lives = MAX_LIVES;
+let streak = 0;        // consecutive points without conceding (score multiplier)
+let wave = 1;          // escalation level (faster ball + more/faster obstacles)
+let playerPoints = 0;  // total points scored this run; drives the waves
+let difficulty = 0;    // AI sharpness (0..1)
+let highScore = Number(localStorage.getItem('bounce_highscore') || 0);
+function rampDifficulty() { difficulty = Math.min(1, difficulty + 0.035); }
 const scoreEl = document.getElementById('score');
+function fmt(n) { return n.toLocaleString('en-US'); }
 function updateScore() {
-  scoreEl.innerHTML = `${scorePlayer} &nbsp;:&nbsp; ${scoreAI}`;
+  const hearts = '❤'.repeat(lives) + `<span style="opacity:.2">❤</span>`.repeat(Math.max(0, MAX_LIVES - lives));
+  const streakTxt = streak > 1 ? ` &nbsp;<span style="color:#ffc24d">🔥x${streak}</span>` : '';
+  scoreEl.innerHTML = `${fmt(score)} &nbsp;·&nbsp; ${hearts}${streakTxt}`;
 }
 
-// --- Goal feedback: screen flash + banner ---
+// --- Feedback: screen flash + transient banner ---
 const flashEl = document.getElementById('flash');
 const bannerEl = document.getElementById('banner');
 let bannerTimer = 0;
-function goalFeedback(playerScored) {
-  const color = playerScored ? '53, 224, 255' : '255, 77, 109';
-  flashEl.style.background = `radial-gradient(circle at center, rgba(${color},0.45), rgba(${color},0) 70%)`;
+function flashScreen(rgb) {
+  flashEl.style.background = `radial-gradient(circle at center, rgba(${rgb},0.45), rgba(${rgb},0) 70%)`;
   flashEl.style.opacity = '1';
   setTimeout(() => { flashEl.style.opacity = '0'; }, 90);
-  bannerEl.textContent = playerScored ? 'POINT!' : 'MISSED';
-  bannerEl.style.color = playerScored ? '#35e0ff' : '#ff4d6d';
+}
+function showBanner(text, color) {
+  bannerEl.innerHTML = text;
+  bannerEl.style.color = color;
   bannerEl.style.opacity = '1';
   bannerEl.style.transform = 'translate(-50%, -50%) scale(1)';
   bannerTimer = 1.0; // seconds visible
@@ -391,23 +411,25 @@ const overlaySub = document.getElementById('overlaySub');
 const pauseBtn = document.getElementById('pauseBtn');
 function showOverlay(title, sub) {
   overlayTitle.textContent = title;
-  overlaySub.textContent = sub;
+  overlaySub.innerHTML = sub;
   overlay.classList.remove('hidden');
   pauseBtn.textContent = '▶'; // play triangle
 }
 function resetMatch() {
-  scorePlayer = 0; scoreAI = 0; difficulty = 0; updateScore();
+  score = 0; lives = MAX_LIVES; streak = 0; difficulty = 0; playerPoints = 0;
+  setWave(1); updateScore();
   player.position.set(0, 0, FIELD_L / 2);
   ai.position.set(0, 0, -FIELD_L / 2);
   resetBall(Math.random() < 0.5 ? 1 : -1);
 }
 function play() {
-  if (state === 'gameover') resetMatch(); // restart a fresh match
+  if (state === 'gameover') resetMatch(); // start a fresh run
   state = 'playing'; overlay.classList.add('hidden'); pauseBtn.textContent = 'II';
 }
-function gameOver(playerWon) {
+function gameOver() {
   state = 'gameover';
-  showOverlay(playerWon ? 'YOU WIN' : 'GAME OVER', 'press space or tap to play again');
+  if (score > highScore) { highScore = score; localStorage.setItem('bounce_highscore', String(highScore)); }
+  showOverlay('GAME OVER', `score ${fmt(score)} &nbsp;·&nbsp; best ${fmt(highScore)}<br>press space or tap to play again`);
 }
 function togglePause() {
   initAudio(); // first user gesture unlocks audio
@@ -441,7 +463,7 @@ function tick(now) {
   // AI tracks the ball with a capped speed: slow & a bit lazy early so you can
   // score, sharper and faster as difficulty climbs over the match.
   const aiMaxStep = (0.10 + difficulty * 0.22) * step; // max units this frame
-  const aiSlack = (1 - difficulty) * 2.0;              // deadzone: ignores small offsets early
+  const aiSlack = (1 - difficulty) * 1.8;              // deadzone: ignores small offsets early
   const tx = THREE.MathUtils.clamp(ball.position.x, -maxX, maxX);
   const ty = THREE.MathUtils.clamp(ball.position.y, -maxY, maxY);
   const dx = tx - ai.position.x, dy = ty - ai.position.y;
@@ -481,6 +503,7 @@ function tick(now) {
   // least-penetrated axis — otherwise a fast ball tunnels deep and bounces the
   // wrong way, sailing straight on toward the opponent.
   for (const o of obstacles) {
+    if (!o.active) continue;
     const c = o.mesh.position;
     const ex = o.half.x + BALL_R, ey = o.half.y + BALL_R, ez = o.half.z + BALL_R;
     const ox = ball.position.x - c.x, oy = ball.position.y - c.y, oz = ball.position.z - c.z;
@@ -537,16 +560,29 @@ function tick(now) {
   const maxSpeed = 0.95;
   if (vel.length() > maxSpeed) vel.setLength(maxSpeed);
 
-  // Goal scored (the ball visibly flies past the paddle before it resets)
+  // AI scores on you: lose a life, break the streak (ball flies past, then resets)
   if (ball.position.z > FIELD_L / 2 + 4) {
-    scoreAI++; rampDifficulty(); updateScore(); addShake(0.8); goalFeedback(false);
+    lives--; streak = 0; rampDifficulty(); updateScore();
+    addShake(0.8); flashScreen('255, 77, 109');
     beep(180, 0.25, 'sawtooth'); spawnBurst(ball.position, 0xff4d6d); resetBall(-1);
-    if (scoreAI >= WIN_SCORE) gameOver(false);
+    if (lives <= 0) gameOver();
+    else showBanner('LIFE LOST', '#ff4d6d');
   }
+  // You score: streak up, points scale with the streak, waves climb with your tally
   if (ball.position.z < -FIELD_L / 2 - 4) {
-    scorePlayer++; rampDifficulty(); updateScore(); addShake(0.8); goalFeedback(true);
+    streak++; playerPoints++;
+    const gained = 100 * streak;
+    score += gained;
+    rampDifficulty(); updateScore();
+    addShake(0.8); flashScreen('53, 224, 255');
     beep(720, 0.18); spawnBurst(ball.position, 0x35e0ff); resetBall(1);
-    if (scorePlayer >= WIN_SCORE) gameOver(true);
+    const nextWave = 1 + Math.floor(playerPoints / WAVE_EVERY);
+    if (nextWave > wave) {
+      setWave(nextWave);
+      showBanner(`WAVE ${wave}`, '#b070ff'); beep(520, 0.1); beep(820, 0.12);
+    } else {
+      showBanner(streak > 1 ? `+${gained} &nbsp;🔥x${streak}` : `+${gained}`, '#35e0ff');
+    }
   }
   } // end serve-pause else
   } // end gameplay block
@@ -576,9 +612,12 @@ function tick(now) {
   // Slowly drift the stars
   stars.rotation.z += 0.0004 * step;
 
-  // Glide the obstacles (runs always, so they look alive on the start screen too)
+  // Glide the obstacles (runs always, so they look alive on the start screen too);
+  // they speed up with each wave for escalating pressure.
+  const obsSpeed = 1 + (wave - 1) * 0.12;
   for (const o of obstacles) {
-    const off = Math.sin(now * o.speed + o.phase) * o.amp;
+    if (!o.active) continue;
+    const off = Math.sin(now * o.speed * obsSpeed + o.phase) * o.amp;
     o.mesh.position.set(
       o.base.x + o.axis.x * off,
       o.base.y + o.axis.y * off,
@@ -603,6 +642,11 @@ function tick(now) {
 
   composer.render();
 }
+
+// --- Initial state: wave 1 obstacles, HUD, and the start screen with best score ---
+setWave(1);
+updateScore();
+overlaySub.innerHTML = `endless &mdash; beat your best${highScore ? ` (${fmt(highScore)})` : ''}<br>press space or tap to start`;
 requestAnimationFrame(tick);
 
 addEventListener('resize', () => {
