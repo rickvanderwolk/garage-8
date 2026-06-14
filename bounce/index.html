@@ -197,34 +197,84 @@ netGeo.setAttribute('position', new THREE.Float32BufferAttribute(netPts, 3));
 const net = new THREE.LineSegments(netGeo, new THREE.LineBasicMaterial({ color: 0x2a6cff, transparent: true, opacity: 0.35 }));
 scene.add(net);
 
-// --- Moving obstacles: the ball bounces off these ---
-const OBS_COLOR = 0xb070ff;
+// --- Moving obstacles: Tetris-style pieces the ball bounces off ---
+// Each shape has its own colour and its own movement style. Built from unit
+// cells so collision is exact (tested per cell). Kept off-centre so they never
+// sit on the ball's serve point.
+const CELL = 1.3;
+const CELL_HALF = CELL / 2;
+// cells in grid units (x, y); colours chosen to stay distinct from the cyan
+// player / red AI paddles. Movement: h=horizontal, v=vertical, d=diagonal, c=circular.
+const TETROMINOES = {
+  I: { color: 0x00e0d0, cells: [[-1.5,0],[-0.5,0],[0.5,0],[1.5,0]] },
+  O: { color: 0xffd23f, cells: [[-0.5,-0.5],[0.5,-0.5],[-0.5,0.5],[0.5,0.5]] },
+  T: { color: 0xb070ff, cells: [[-1,0],[0,0],[1,0],[0,1]] },
+  S: { color: 0x5dff7e, cells: [[-1,0],[0,0],[0,1],[1,1]] },
+  Z: { color: 0xff8a3d, cells: [[-1,1],[0,1],[0,0],[1,0]] },
+  J: { color: 0x4d8bff, cells: [[-1,1],[-1,0],[0,0],[1,0]] },
+  L: { color: 0xff5db1, cells: [[1,1],[-1,0],[0,0],[1,0]] },
+};
 const obstacles = [];
-function makeObstacle(x, y, z, w, h, d, axis, amp, speed, phase, fromWave) {
-  const m = new THREE.Mesh(
-    new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ color: OBS_COLOR, emissive: OBS_COLOR, emissiveIntensity: 0.5, roughness: 0.3, transparent: true, opacity: 0.5 })
-  );
-  m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: OBS_COLOR })));
-  scene.add(m);
-  const o = { mesh: m, base: new THREE.Vector3(x, y, z), half: new THREE.Vector3(w/2, h/2, d/2), axis, amp, speed, phase, fromWave, active: true };
-  m.position.copy(o.base);
+const _cubeGeo = new THREE.BoxGeometry(CELL * 0.9, CELL * 0.9, CELL * 0.9);
+function makeTetromino(key, x, y, z, move, amp, speed, phase, fromWave) {
+  const def = TETROMINOES[key];
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.5, roughness: 0.3, transparent: true, opacity: 0.55 });
+  // centre the piece on its own centroid so placement/motion is predictable
+  let cx = 0, cy = 0;
+  for (const c of def.cells) { cx += c[0]; cy += c[1]; }
+  cx /= def.cells.length; cy /= def.cells.length;
+  const cells = [];
+  for (const c of def.cells) {
+    const lx = (c[0] - cx) * CELL, ly = (c[1] - cy) * CELL;
+    const cube = new THREE.Mesh(_cubeGeo, mat);
+    cube.position.set(lx, ly, 0);
+    cube.add(new THREE.LineSegments(new THREE.EdgesGeometry(_cubeGeo), new THREE.LineBasicMaterial({ color: def.color })));
+    group.add(cube);
+    cells.push(new THREE.Vector3(lx, ly, 0));
+  }
+  scene.add(group);
+  const o = { group, cells, base: new THREE.Vector3(x, y, z), move, amp, speed, phase, fromWave, active: true, color: def.color };
+  group.position.copy(o.base);
   obstacles.push(o);
 }
-// A pool of obstacles that reveal themselves as the waves climb. The first few
-// are active from the start; the rest switch on at higher waves (see setWave).
-// All kept off-centre so they never sit on the ball's serve point.
-makeObstacle(0,  0,  6, 4, 1.2, 1, new THREE.Vector3(1, 0, 0), 5, 0.0009, 0,   1);
-makeObstacle(0,  0, -6, 4, 1.2, 1, new THREE.Vector3(1, 0, 0), 5, 0.0011, 1.6, 1);
-makeObstacle(5,  0,  0, 1, 4,   1, new THREE.Vector3(0, 1, 0), 3, 0.0013, 0.8, 1);
-makeObstacle(-5, 0,  0, 1, 4,   1, new THREE.Vector3(0, 1, 0), 3, 0.0015, 2.0, 2);
-makeObstacle(0,  3,  3, 3, 1,   1, new THREE.Vector3(1, 0, 0), 4, 0.0010, 0.5, 3);
-makeObstacle(0, -3, -3, 3, 1,   1, new THREE.Vector3(1, 0, 0), 4, 0.0012, 2.5, 4);
+// A pool that reveals more pieces as the waves climb.
+makeTetromino('I',  0,  3,  6, 'h', 3.0, 0.0009, 0.0, 1);
+makeTetromino('T',  5,  0, -4, 'v', 3.0, 0.0011, 1.6, 1);
+makeTetromino('S', -5,  1,  0, 'd', 2.5, 0.0013, 0.8, 1);
+makeTetromino('O',  0, -3, -6, 'c', 2.5, 0.0010, 2.0, 2);
+makeTetromino('L',  4,  2,  3, 'v', 3.0, 0.0012, 0.5, 3);
+makeTetromino('Z', -4, -2, -3, 'd', 2.5, 0.0014, 2.5, 4);
 
 // Reveal obstacles for the current wave (called when a wave starts).
 function setWave(w) {
   wave = w;
-  for (const o of obstacles) { o.active = w >= o.fromWave; o.mesh.visible = o.active; }
+  for (const o of obstacles) { o.active = w >= o.fromWave; o.group.visible = o.active; }
+}
+
+// Entry-aware AABB-vs-ball reflection for one box (cell). Returns true on hit.
+function collideBox(cx, cy, cz, hx, hy, hz, step) {
+  const ex = hx + BALL_R, ey = hy + BALL_R, ez = hz + BALL_R;
+  const ox = ball.position.x - cx, oy = ball.position.y - cy, oz = ball.position.z - cz;
+  if (Math.abs(ox) >= ex || Math.abs(oy) >= ey || Math.abs(oz) >= ez) return false;
+  const pox = ox - vel.x * step, poy = oy - vel.y * step, poz = oz - vel.z * step;
+  let axis = null, best = -Infinity;
+  const consider = (a, off, poff, ext, v) => {
+    if (v * off >= 0) return;
+    const sc = (Math.abs(poff) >= ext ? 1e6 : 0) + Math.abs(v);
+    if (sc > best) { best = sc; axis = a; }
+  };
+  consider('x', ox, pox, ex, vel.x);
+  consider('y', oy, poy, ey, vel.y);
+  consider('z', oz, poz, ez, vel.z);
+  if (!axis) {
+    const px = ex - Math.abs(ox), py = ey - Math.abs(oy), pz = ez - Math.abs(oz);
+    axis = (px <= py && px <= pz) ? 'x' : (py <= pz ? 'y' : 'z');
+  }
+  if (axis === 'x')      { vel.x *= -1; ball.position.x = cx + Math.sign(ox || 1) * ex; }
+  else if (axis === 'y') { vel.y *= -1; ball.position.y = cy + Math.sign(oy || 1) * ey; }
+  else                   { vel.z *= -1; ball.position.z = cz + Math.sign(oz || 1) * ez; }
+  return true;
 }
 
 // --- Paddles (translucent with a bright neon edge) ---
@@ -498,36 +548,14 @@ function tick(now) {
   if (ball.position.x > FIELD_W / 2 - BALL_R) { ball.position.x = FIELD_W / 2 - BALL_R; vel.x *= -1; addShake(0.15); beep(200, 0.04); }
   if (ball.position.x < -FIELD_W / 2 + BALL_R) { ball.position.x = -FIELD_W / 2 + BALL_R; vel.x *= -1; addShake(0.15); beep(200, 0.04); }
 
-  // Obstacle collisions (AABB vs ball). Reflect on the axis the ball entered
-  // through (using its previous position + travel direction), not just the
-  // least-penetrated axis — otherwise a fast ball tunnels deep and bounces the
-  // wrong way, sailing straight on toward the opponent.
+  // Obstacle collisions: test the ball against each cell of each active piece.
   for (const o of obstacles) {
     if (!o.active) continue;
-    const c = o.mesh.position;
-    const ex = o.half.x + BALL_R, ey = o.half.y + BALL_R, ez = o.half.z + BALL_R;
-    const ox = ball.position.x - c.x, oy = ball.position.y - c.y, oz = ball.position.z - c.z;
-    if (Math.abs(ox) >= ex || Math.abs(oy) >= ey || Math.abs(oz) >= ez) continue; // no overlap
-
-    // Previous-frame offsets, to see which face the ball crossed
-    const pox = ox - vel.x * step, poy = oy - vel.y * step, poz = oz - vel.z * step;
-    let axis = null, best = -Infinity;
-    const consider = (a, off, poff, ext, v) => {
-      if (v * off >= 0) return;                         // not moving into the block on this axis
-      const score = (Math.abs(poff) >= ext ? 1e6 : 0) + Math.abs(v); // prefer the face just crossed, then dominant motion
-      if (score > best) { best = score; axis = a; }
-    };
-    consider('x', ox, pox, ex, vel.x);
-    consider('y', oy, poy, ey, vel.y);
-    consider('z', oz, poz, ez, vel.z);
-    if (!axis) { // ball started inside (e.g. obstacle moved onto it): fall back to min penetration
-      const px = ex - Math.abs(ox), py = ey - Math.abs(oy), pz = ez - Math.abs(oz);
-      axis = (px <= py && px <= pz) ? 'x' : (py <= pz ? 'y' : 'z');
+    let hit = false;
+    for (const cell of o.cells) {
+      if (collideBox(o.group.position.x + cell.x, o.group.position.y + cell.y, o.base.z + cell.z, CELL_HALF, CELL_HALF, CELL_HALF, step)) { hit = true; break; }
     }
-    if (axis === 'x')      { vel.x *= -1; ball.position.x = c.x + Math.sign(ox || 1) * ex; }
-    else if (axis === 'y') { vel.y *= -1; ball.position.y = c.y + Math.sign(oy || 1) * ey; }
-    else                   { vel.z *= -1; ball.position.z = c.z + Math.sign(oz || 1) * ez; }
-    addShake(0.3); beep(300, 0.05); spawnBurst(ball.position, OBS_COLOR);
+    if (hit) { addShake(0.3); beep(300, 0.05); spawnBurst(ball.position, o.color); }
   }
 
   // Paddle collisions
@@ -613,16 +641,17 @@ function tick(now) {
   stars.rotation.z += 0.0004 * step;
 
   // Glide the obstacles (runs always, so they look alive on the start screen too);
-  // they speed up with each wave for escalating pressure.
+  // each shape has its own movement style, and they speed up with each wave.
   const obsSpeed = 1 + (wave - 1) * 0.12;
   for (const o of obstacles) {
     if (!o.active) continue;
-    const off = Math.sin(now * o.speed * obsSpeed + o.phase) * o.amp;
-    o.mesh.position.set(
-      o.base.x + o.axis.x * off,
-      o.base.y + o.axis.y * off,
-      o.base.z + o.axis.z * off
-    );
+    const t = now * o.speed * obsSpeed + o.phase;
+    let ox = 0, oy = 0;
+    if (o.move === 'h')      { ox = Math.sin(t) * o.amp; }
+    else if (o.move === 'v') { oy = Math.sin(t) * o.amp; }
+    else if (o.move === 'd') { ox = Math.sin(t) * o.amp; oy = Math.cos(t) * o.amp; }
+    else if (o.move === 'c') { ox = Math.cos(t) * o.amp; oy = Math.sin(t) * o.amp; }
+    o.group.position.set(o.base.x + ox, o.base.y + oy, o.base.z);
   }
 
   // Fade the emissive flash back down
