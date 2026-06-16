@@ -1,3 +1,3 @@
-# LED Strip Game
+# Bounce
 
-Project has been moved to [https://github.com/rickvanderwolk/rickvanderwolk.cc/]()
+Project has been moved to [https://github.com/rickvanderwolk/rickvanderwolk.cc/tree/main/bounce](https://github.com/rickvanderwolk/rickvanderwolk.cc/tree/main/bounce)
