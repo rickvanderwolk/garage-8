@@ -16,15 +16,16 @@ links to them with `../`, so there is no duplication.
 | 02 | `02-obstacles/` | Moving blocks drift through the field and deflect the ball. |
 | 03 | `03-shapes/` | Arcade mode — glowing coloured block-shapes as obstacles, with waves, streaks and lives. |
 | 04 | `04-stack/` | The mash-up — steer falling pieces (arrow keys / on-screen buttons) while keeping the rally alive; locked blocks are obstacles and full rows clear. |
+| 05 | `05-2d/` | The same mash-up flattened to 2D in a classic-arcade style (scanlines, chip-tune blips). Pure 2D canvas, no Three.js. |
 
-The root `index.html` is a menu linking to all four.
+The root `index.html` is a menu linking to all five.
 
 ## Controls
 
 - **All versions:** move your mouse (or drag on touch) to control the front paddle
   in both axes; where you hit the ball decides its angle.
-- **04 · Stack only:** `←` / `→` move the falling piece, `↑` rotates, `↓` drops.
-  On touch, use the on-screen buttons. `space` (or the pause button) starts / pauses.
+- **04 · Stack and 05 · 2D:** `←` / `→` move the falling piece, `↑` rotates, `↓` drops.
+  On touch, use the on-screen buttons. `space` (or tap) starts / pauses.
 
 ## Play
 
