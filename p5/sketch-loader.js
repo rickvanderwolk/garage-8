@@ -1,5 +1,5 @@
 (function() {
-  const totalSketches = 62;
+  const totalSketches = 74;
   const params = new URLSearchParams(window.location.search);
   const sketchId = parseInt(params.get('sketch')) || 1;
 
@@ -29,6 +29,14 @@
     } else if (e.key === 'ArrowRight') {
       goTo(sketchId + 1);
     }
+  });
+
+  let resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+      window.location.reload();
+    }, 200);
   });
 
   const script = document.createElement('script');
