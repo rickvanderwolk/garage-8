@@ -1,5 +1,5 @@
 (function() {
-  const totalSketches = 75;
+  const totalSketches = 96;
   const params = new URLSearchParams(window.location.search);
   const sketchId = parseInt(params.get('sketch')) || 1;
 
